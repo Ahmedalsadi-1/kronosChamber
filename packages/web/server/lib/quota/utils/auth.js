@@ -2,12 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const OPENCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'opencode');
-const OPENCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'opencode');
+const KRONOSCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'kronoscode');
+const KRONOSCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'kronoscode');
 
 export const ANTIGRAVITY_ACCOUNTS_PATHS = [
-  path.join(OPENCODE_CONFIG_DIR, 'antigravity-accounts.json'),
-  path.join(OPENCODE_DATA_DIR, 'antigravity-accounts.json')
+  path.join(KRONOSCODE_CONFIG_DIR, 'antigravity-accounts.json'),
+  path.join(KRONOSCODE_DATA_DIR, 'antigravity-accounts.json')
 ];
 
 export const readJsonFile = (filePath) => {

@@ -4,15 +4,20 @@ use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::{
+    io::{BufRead, BufReader},
     net::TcpListener,
     process::Command,
-    sync::{atomic::{AtomicU64, Ordering}, Mutex},
+    sync::{atomic::{AtomicBool, AtomicU64, AtomicU32, Ordering}, Mutex},
+    thread,
     time::Duration,
 };
 use std::{collections::{HashMap, HashSet}, fs, path::{Path, PathBuf}};
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    webview::{PageLoadEvent, WebviewBuilder},
+    Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder,
+};
 use tauri::utils::config::BackgroundThrottlingPolicy;
 
 /// Global counter for generating unique window labels.
@@ -976,6 +981,13 @@ const MIN_RESTORE_WINDOW_WIDTH: u32 = 900;
 const MIN_RESTORE_WINDOW_HEIGHT: u32 = 560;
 
 const LOCAL_HOST_ID: &str = "local";
+const INTERCONNECT_EVENT_CHANNEL: &str = "openchamber://interconnect/event";
+const INTERCONNECT_STATUS_CHANNEL: &str = "openchamber://interconnect/status";
+const INTERCONNECT_LAST_EVENT_ID_KEY: &str = "desktopInterconnectLastEventId";
+const INTERCONNECT_LAST_HOST_DECISION_KEY: &str = "desktopInterconnectLastHostDecision";
+const DESKTOP_BROWSER_HOME_URL: &str = "https://www.bing.com";
+const DESKTOP_BROWSER_USER_AGENT: &str =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 #[derive(Default)]
 struct SidecarState {
@@ -1064,6 +1076,459 @@ struct DesktopWindowState {
 #[derive(Default)]
 struct WindowGeometryDebounceState {
     revisions: Mutex<HashMap<String, u64>>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InterconnectStatusPayload {
+    state: String,
+    reason: Option<String>,
+    host: Option<String>,
+    retry_count: u32,
+    consecutive_transient_errors: u32,
+    relay_mode: String,
+    last_event_at: Option<u64>,
+}
+
+impl Default for InterconnectStatusPayload {
+    fn default() -> Self {
+        Self {
+            state: "offline".to_string(),
+            reason: None,
+            host: None,
+            retry_count: 0,
+            consecutive_transient_errors: 0,
+            relay_mode: "desktop-relay".to_string(),
+            last_event_at: None,
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InterconnectStateSnapshot {
+    status: InterconnectStatusPayload,
+    last_event_id: Option<String>,
+    last_success_event_id: Option<String>,
+    last_host_decision: Option<String>,
+}
+
+#[derive(Default)]
+struct InterconnectRelayState {
+    started: AtomicBool,
+    reconnect_nonce: AtomicU64,
+    consecutive_transient_errors: AtomicU32,
+    host: Mutex<Option<String>>,
+    status: Mutex<InterconnectStatusPayload>,
+    last_event_id: Mutex<Option<String>>,
+    last_success_event_id: Mutex<Option<String>>,
+    last_host_decision: Mutex<Option<String>>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopBrowserTab {
+    id: String,
+    title: String,
+    url: String,
+    is_loading: bool,
+    last_error: Option<String>,
+    back_depth: usize,
+    forward_depth: usize,
+    #[serde(default)]
+    history: Vec<String>,
+    #[serde(default)]
+    history_index: usize,
+    #[serde(default)]
+    suppress_next_history_push: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopBrowserPagePayload {
+    id: String,
+    index: usize,
+    title: String,
+    url: String,
+    active: bool,
+    can_go_back: bool,
+    can_go_forward: bool,
+    is_loading: bool,
+    last_error: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopBrowserStatePayload {
+    enabled: bool,
+    window_label: String,
+    pages: Vec<DesktopBrowserPagePayload>,
+    active_page_id: Option<String>,
+}
+
+#[derive(Default)]
+struct DesktopBrowserState {
+    windows: Mutex<HashMap<String, DesktopBrowserWindowState>>,
+}
+
+struct DesktopBrowserWindowState {
+    webview_label: String,
+    tabs: Vec<DesktopBrowserTab>,
+    active_index: usize,
+    next_tab_number: u64,
+}
+
+fn desktop_browser_tab_id(next: u64) -> String {
+    format!("desktop-browser-tab-{next}")
+}
+
+fn create_desktop_browser_tab(id: String, url: String) -> DesktopBrowserTab {
+    DesktopBrowserTab {
+        id,
+        title: "Untitled".to_string(),
+        url: url.clone(),
+        is_loading: false,
+        last_error: None,
+        back_depth: 0,
+        forward_depth: 0,
+        history: vec![url],
+        history_index: 0,
+        suppress_next_history_push: false,
+    }
+}
+
+fn ensure_desktop_browser_window_state<'a>(
+    windows: &'a mut HashMap<String, DesktopBrowserWindowState>,
+    window_label: &str,
+) -> &'a mut DesktopBrowserWindowState {
+    windows.entry(window_label.to_string()).or_insert_with(|| {
+        let initial_id = desktop_browser_tab_id(1);
+        DesktopBrowserWindowState {
+            webview_label: format!("desktop-browser-pane-{window_label}"),
+            tabs: vec![create_desktop_browser_tab(
+                initial_id,
+                DESKTOP_BROWSER_HOME_URL.to_string(),
+            )],
+            active_index: 0,
+            next_tab_number: 2,
+        }
+    })
+}
+
+fn update_desktop_browser_tab_depths(tab: &mut DesktopBrowserTab) {
+    if tab.history.is_empty() {
+        tab.history.push(if tab.url.trim().is_empty() {
+            DESKTOP_BROWSER_HOME_URL.to_string()
+        } else {
+            tab.url.clone()
+        });
+    }
+    if tab.history_index >= tab.history.len() {
+        tab.history_index = tab.history.len().saturating_sub(1);
+    }
+    tab.back_depth = tab.history_index;
+    tab.forward_depth = tab
+        .history
+        .len()
+        .saturating_sub(tab.history_index.saturating_add(1));
+}
+
+fn browser_host_like_target(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.contains(' ') {
+        return false;
+    }
+
+    if trimmed.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    if let Some((host, port)) = trimmed.split_once(':') {
+        if host.eq_ignore_ascii_case("localhost") && port.parse::<u16>().is_ok() {
+            return true;
+        }
+    }
+
+    let ipv4_like = {
+        let parts = trimmed.split('.').collect::<Vec<_>>();
+        parts.len() == 4 && parts.iter().all(|part| part.parse::<u8>().is_ok())
+    };
+    if ipv4_like {
+        return true;
+    }
+
+    trimmed.contains('.')
+}
+
+fn coerce_desktop_browser_url(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return DESKTOP_BROWSER_HOME_URL.to_string();
+    }
+
+    if let Ok(parsed) = url::Url::parse(trimmed) {
+        let scheme = parsed.scheme();
+        if scheme == "http" || scheme == "https" || scheme == "about" {
+            return parsed.to_string();
+        }
+    }
+
+    if trimmed.eq_ignore_ascii_case("about:blank") {
+        return "about:blank".to_string();
+    }
+
+    if browser_host_like_target(trimmed) {
+        if trimmed.starts_with("localhost")
+            || trimmed.starts_with("127.")
+            || trimmed.starts_with("0.0.0.0")
+        {
+            return format!("http://{trimmed}");
+        }
+        return format!("https://{trimmed}");
+    }
+
+    format!(
+        "https://www.bing.com/search?q={}",
+        url::form_urlencoded::byte_serialize(trimmed.as_bytes()).collect::<String>()
+    )
+}
+
+fn update_tab_for_navigation(tab: &mut DesktopBrowserTab, target_url: String, push_history: bool) {
+    if push_history {
+        if tab.history_index + 1 < tab.history.len() {
+            tab.history.truncate(tab.history_index + 1);
+        }
+        tab.history.push(target_url.clone());
+        tab.history_index = tab.history.len().saturating_sub(1);
+    }
+    tab.url = target_url;
+    tab.is_loading = true;
+    tab.last_error = None;
+    tab.suppress_next_history_push = true;
+    update_desktop_browser_tab_depths(tab);
+}
+
+fn apply_loaded_url_to_tab(tab: &mut DesktopBrowserTab, loaded_url: &str) {
+    let normalized = loaded_url.trim();
+    if normalized.is_empty() {
+        tab.is_loading = false;
+        update_desktop_browser_tab_depths(tab);
+        return;
+    }
+
+    if tab.suppress_next_history_push && tab.url == normalized {
+        tab.suppress_next_history_push = false;
+        tab.is_loading = false;
+        update_desktop_browser_tab_depths(tab);
+        return;
+    }
+
+    if let Some(existing_index) = tab.history.iter().position(|entry| entry == normalized) {
+        tab.history_index = existing_index;
+        tab.url = normalized.to_string();
+        tab.suppress_next_history_push = false;
+        tab.is_loading = false;
+        update_desktop_browser_tab_depths(tab);
+        return;
+    }
+
+    if tab.history_index + 1 < tab.history.len() {
+        tab.history.truncate(tab.history_index + 1);
+    }
+    tab.history.push(normalized.to_string());
+    tab.history_index = tab.history.len().saturating_sub(1);
+    tab.url = normalized.to_string();
+    tab.suppress_next_history_push = false;
+    tab.is_loading = false;
+    update_desktop_browser_tab_depths(tab);
+}
+
+fn serialize_desktop_browser_state(
+    window_label: &str,
+    state: &DesktopBrowserWindowState,
+) -> DesktopBrowserStatePayload {
+    let pages = state
+        .tabs
+        .iter()
+        .enumerate()
+        .map(|(index, tab)| {
+            let mut normalized = tab.clone();
+            update_desktop_browser_tab_depths(&mut normalized);
+            DesktopBrowserPagePayload {
+                id: normalized.id.clone(),
+                index,
+                title: normalized.title.clone(),
+                url: normalized.url.clone(),
+                active: state.active_index == index,
+                can_go_back: normalized.back_depth > 0,
+                can_go_forward: normalized.forward_depth > 0,
+                is_loading: normalized.is_loading,
+                last_error: normalized.last_error.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
+    let active_page_id = state
+        .tabs
+        .get(state.active_index)
+        .map(|tab| tab.id.clone());
+    DesktopBrowserStatePayload {
+        enabled: true,
+        window_label: window_label.to_string(),
+        pages,
+        active_page_id,
+    }
+}
+
+fn emit_desktop_browser_state(app: &tauri::AppHandle, window_label: &str) {
+    let payload = {
+        let state = app.state::<DesktopBrowserState>();
+        let windows = state.windows.lock().expect("desktop browser windows mutex");
+        let Some(window_state) = windows.get(window_label) else {
+            return;
+        };
+        serialize_desktop_browser_state(window_label, window_state)
+    };
+    let _ = app.emit("openchamber:desktop-browser-state", payload);
+}
+
+fn update_desktop_browser_active_tab<F>(app: &tauri::AppHandle, window_label: &str, mutator: F)
+where
+    F: FnOnce(&mut DesktopBrowserTab),
+{
+    let mut changed = false;
+    {
+        let state = app.state::<DesktopBrowserState>();
+        let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+        if let Some(window_state) = windows.get_mut(window_label) {
+            if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+                mutator(tab);
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        emit_desktop_browser_state(app, window_label);
+    }
+}
+
+fn desktop_browser_state_payload_for_window(
+    app: &tauri::AppHandle,
+    window_label: &str,
+) -> DesktopBrowserStatePayload {
+    let state = app.state::<DesktopBrowserState>();
+    let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+    let window_state = ensure_desktop_browser_window_state(&mut windows, window_label);
+    if window_state.active_index >= window_state.tabs.len() {
+        window_state.active_index = window_state.tabs.len().saturating_sub(1);
+    }
+    for tab in &mut window_state.tabs {
+        update_desktop_browser_tab_depths(tab);
+    }
+    serialize_desktop_browser_state(window_label, window_state)
+}
+
+fn ensure_desktop_browser_webview(
+    app: &tauri::AppHandle,
+    window: &tauri::Window,
+    window_label: &str,
+) -> Result<String, String> {
+    let (webview_label, initial_url) = {
+        let state = app.state::<DesktopBrowserState>();
+        let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+        let window_state = ensure_desktop_browser_window_state(&mut windows, window_label);
+        if window_state.active_index >= window_state.tabs.len() {
+            window_state.active_index = window_state.tabs.len().saturating_sub(1);
+        }
+        let current_url = window_state
+            .tabs
+            .get(window_state.active_index)
+            .map(|tab| tab.url.clone())
+            .unwrap_or_else(|| DESKTOP_BROWSER_HOME_URL.to_string());
+        (window_state.webview_label.clone(), current_url)
+    };
+
+    if app.get_webview(&webview_label).is_some() {
+        return Ok(webview_label);
+    }
+
+    let parsed_url = url::Url::parse(&coerce_desktop_browser_url(&initial_url))
+        .map_err(|err| format!("Invalid browser URL: {err}"))?;
+    let on_load_app = app.clone();
+    let on_load_window_label = window_label.to_string();
+    let on_title_app = app.clone();
+    let on_title_window_label = window_label.to_string();
+
+    let builder = WebviewBuilder::new(webview_label.clone(), WebviewUrl::External(parsed_url))
+        .user_agent(DESKTOP_BROWSER_USER_AGENT)
+        .on_page_load(move |_webview, payload| {
+            let mut changed = false;
+            let loaded_url = payload.url().to_string();
+            {
+                let state = on_load_app.state::<DesktopBrowserState>();
+                let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+                let window_state =
+                    ensure_desktop_browser_window_state(&mut windows, &on_load_window_label);
+                if window_state.active_index >= window_state.tabs.len() {
+                    window_state.active_index = window_state.tabs.len().saturating_sub(1);
+                }
+                if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+                    match payload.event() {
+                        PageLoadEvent::Started => {
+                            tab.is_loading = true;
+                            tab.last_error = None;
+                            if !loaded_url.trim().is_empty() {
+                                tab.url = loaded_url.clone();
+                            }
+                            changed = true;
+                        }
+                        PageLoadEvent::Finished => {
+                            tab.last_error = None;
+                            apply_loaded_url_to_tab(tab, &loaded_url);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            if changed {
+                emit_desktop_browser_state(&on_load_app, &on_load_window_label);
+            }
+        })
+        .on_document_title_changed(move |_webview, title| {
+            let normalized_title = if title.trim().is_empty() {
+                "Untitled".to_string()
+            } else {
+                title
+            };
+            let mut changed = false;
+            {
+                let state = on_title_app.state::<DesktopBrowserState>();
+                let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+                let window_state =
+                    ensure_desktop_browser_window_state(&mut windows, &on_title_window_label);
+                if window_state.active_index >= window_state.tabs.len() {
+                    window_state.active_index = window_state.tabs.len().saturating_sub(1);
+                }
+                if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+                    if tab.title != normalized_title {
+                        tab.title = normalized_title;
+                        changed = true;
+                    }
+                }
+            }
+            if changed {
+                emit_desktop_browser_state(&on_title_app, &on_title_window_label);
+            }
+        });
+
+    let webview = window
+        .add_child(
+            builder,
+            LogicalPosition::new(0.0, 0.0),
+            LogicalSize::new(1.0, 1.0),
+        )
+        .map_err(|err| format!("Failed to create browser pane: {err}"))?;
+    let _ = webview.hide();
+    Ok(webview_label)
 }
 
 fn normalize_host_url(raw: &str) -> Option<String> {
@@ -1295,6 +1760,527 @@ fn write_desktop_hosts_config_to_path(path: &Path, config: &DesktopHostsConfig) 
     Ok(())
 }
 
+fn read_desktop_interconnect_fields_from_disk() -> (Option<String>, Option<String>) {
+    let path = settings_file_path();
+    let raw = fs::read_to_string(path).ok();
+    let parsed = raw
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok());
+
+    let last_event_id = parsed
+        .as_ref()
+        .and_then(|v| v.get(INTERCONNECT_LAST_EVENT_ID_KEY))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let last_host_decision = parsed
+        .as_ref()
+        .and_then(|v| v.get(INTERCONNECT_LAST_HOST_DECISION_KEY))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    (last_event_id, last_host_decision)
+}
+
+fn write_interconnect_field_to_disk(key: &str, value: &str) -> Result<()> {
+    let path = settings_file_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let mut root: serde_json::Value = if let Ok(raw) = fs::read_to_string(&path) {
+        serde_json::from_str(&raw).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    if !root.is_object() {
+        root = serde_json::json!({});
+    }
+
+    root[key] = serde_json::Value::String(value.to_string());
+    fs::write(&path, serde_json::to_string_pretty(&root)?)?;
+    Ok(())
+}
+
+fn now_ms_u64() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn current_interconnect_snapshot(app: &tauri::AppHandle) -> InterconnectStateSnapshot {
+    if let Some(state) = app.try_state::<InterconnectRelayState>() {
+        let status = state.status.lock().expect("interconnect status mutex").clone();
+        let last_event_id = state
+            .last_event_id
+            .lock()
+            .expect("interconnect last_event_id mutex")
+            .clone();
+        let last_success_event_id = state
+            .last_success_event_id
+            .lock()
+            .expect("interconnect last_success_event_id mutex")
+            .clone();
+        let last_host_decision = state
+            .last_host_decision
+            .lock()
+            .expect("interconnect last_host_decision mutex")
+            .clone();
+
+        return InterconnectStateSnapshot {
+            status,
+            last_event_id,
+            last_success_event_id,
+            last_host_decision,
+        };
+    }
+
+    InterconnectStateSnapshot {
+        status: InterconnectStatusPayload::default(),
+        last_event_id: None,
+        last_success_event_id: None,
+        last_host_decision: None,
+    }
+}
+
+fn emit_interconnect_status(app: &tauri::AppHandle) {
+    let snapshot = current_interconnect_snapshot(app);
+    let _ = app.emit(INTERCONNECT_STATUS_CHANNEL, snapshot.status);
+}
+
+fn set_interconnect_status(
+    app: &tauri::AppHandle,
+    state_name: &str,
+    reason: Option<String>,
+    retry_count: Option<u32>,
+    host_override: Option<String>,
+    last_event_at: Option<u64>,
+) {
+    if let Some(state) = app.try_state::<InterconnectRelayState>() {
+        let host = {
+            if let Some(explicit) = host_override {
+                Some(explicit)
+            } else {
+                state.host.lock().expect("interconnect host mutex").clone()
+            }
+        };
+
+        let mut status = state.status.lock().expect("interconnect status mutex");
+        status.state = state_name.to_string();
+        status.reason = reason;
+        status.host = host;
+        status.consecutive_transient_errors = state.consecutive_transient_errors.load(Ordering::Relaxed);
+        if let Some(retry) = retry_count {
+            status.retry_count = retry;
+        }
+        if let Some(last) = last_event_at {
+            status.last_event_at = Some(last);
+        }
+    }
+
+    emit_interconnect_status(app);
+}
+
+fn emit_interconnect_event(app: &tauri::AppHandle, payload: &serde_json::Value) {
+    let is_notification = payload
+        .as_object()
+        .and_then(|obj| obj.get("type").and_then(|v| v.as_str()))
+        .map(|kind| kind == "openchamber:notification")
+        .or_else(|| {
+            payload
+                .as_object()
+                .and_then(|obj| obj.get("payload"))
+                .and_then(|value| value.as_object())
+                .and_then(|obj| obj.get("type").and_then(|v| v.as_str()))
+                .map(|kind| kind == "openchamber:notification")
+        })
+        .unwrap_or(false);
+
+    if !is_notification {
+        let _ = app.emit(INTERCONNECT_EVENT_CHANNEL, payload);
+        return;
+    }
+
+    let windows = app.webview_windows();
+    if windows.is_empty() {
+        let _ = app.emit(INTERCONNECT_EVENT_CHANNEL, payload);
+        return;
+    }
+
+    let focused = windows.values().find(|window| window.is_focused().unwrap_or(false));
+    if let Some(target) = focused {
+        let _ = target.emit(INTERCONNECT_EVENT_CHANNEL, payload);
+        return;
+    }
+
+    if let Some(main) = windows.get("main") {
+        let _ = main.emit(INTERCONNECT_EVENT_CHANNEL, payload);
+        return;
+    }
+
+    if let Some(any_window) = windows.values().next() {
+        let _ = any_window.emit(INTERCONNECT_EVENT_CHANNEL, payload);
+        return;
+    }
+
+    let _ = app.emit(INTERCONNECT_EVENT_CHANNEL, payload);
+}
+
+fn build_interconnect_event_url(base_url: &str) -> Option<String> {
+    let normalized = normalize_host_url(base_url)?;
+    let mut parsed = url::Url::parse(&normalized).ok()?;
+    let current_path = parsed.path();
+    let trimmed_path = current_path.trim_end_matches('/');
+    let event_path = if trimmed_path.is_empty() {
+        "/api/global/event".to_string()
+    } else {
+        format!("{trimmed_path}/api/global/event")
+    };
+    parsed.set_path(&event_path);
+    Some(parsed.to_string())
+}
+
+fn resolve_relay_host_for_target(
+    target_url: &str,
+    local_ui_url: &str,
+    local_server_url: &str,
+) -> Option<String> {
+    let normalized_target = normalize_host_url(target_url)?;
+    let normalized_local_ui = normalize_host_url(local_ui_url)?;
+    if normalized_target == normalized_local_ui {
+        return normalize_host_url(local_server_url);
+    }
+    Some(normalized_target)
+}
+
+fn is_transient_interconnect_stream_error(error_text: &str) -> bool {
+    let lower = error_text.to_ascii_lowercase();
+    lower.contains("error decoding response body")
+        || lower.contains("timed out")
+        || lower.contains("timeout")
+        || lower.contains("connection reset")
+        || lower.contains("broken pipe")
+        || lower.contains("unexpected eof")
+        || lower.contains("incomplete message")
+}
+
+fn run_interconnect_relay(app: tauri::AppHandle) {
+    let client = match reqwest::blocking::Client::builder()
+        .no_proxy()
+        .connect_timeout(Duration::from_secs(10))
+        .build()
+    {
+        Ok(client) => client,
+        Err(err) => {
+            log::warn!("[interconnect] failed to create HTTP client: {err}");
+            return;
+        }
+    };
+
+    let mut retry_count = 0u32;
+    let mut previous_nonce = app
+        .try_state::<InterconnectRelayState>()
+        .map(|state| state.reconnect_nonce.load(Ordering::Relaxed))
+        .unwrap_or(0);
+    let mut last_persisted_event_write_at = 0u64;
+
+    loop {
+        let Some(state) = app.try_state::<InterconnectRelayState>() else {
+            thread::sleep(Duration::from_millis(500));
+            continue;
+        };
+
+        let host = state.host.lock().expect("interconnect host mutex").clone();
+        let Some(host) = host else {
+            set_interconnect_status(
+                &app,
+                "offline",
+                Some("Waiting for relay host".to_string()),
+                Some(retry_count),
+                None,
+                None,
+            );
+            thread::sleep(Duration::from_millis(500));
+            continue;
+        };
+
+        let Some(url) = build_interconnect_event_url(&host) else {
+            set_interconnect_status(
+                &app,
+                "degraded",
+                Some("Invalid relay host URL".to_string()),
+                Some(retry_count),
+                Some(host),
+                None,
+            );
+            thread::sleep(Duration::from_millis(800));
+            continue;
+        };
+
+        let last_event_id = state
+            .last_event_id
+            .lock()
+            .expect("interconnect last_event_id mutex")
+            .clone();
+
+        set_interconnect_status(
+            &app,
+            "reconnecting",
+            Some("Connecting relay stream".to_string()),
+            Some(retry_count),
+            Some(host.clone()),
+            None,
+        );
+
+        let mut request = client
+            .get(url)
+            .header("Accept", "text/event-stream")
+            .header("Cache-Control", "no-cache")
+            .header("Connection", "keep-alive");
+        if let Some(last) = last_event_id.clone() {
+            if !last.trim().is_empty() {
+                request = request.header("Last-Event-ID", last);
+            }
+        }
+
+        match request.send() {
+            Ok(response) => {
+                let status = response.status();
+                if status.as_u16() == 401 || status.as_u16() == 403 {
+                    state.consecutive_transient_errors.store(0, Ordering::Relaxed);
+                    set_interconnect_status(
+                        &app,
+                        "auth-required",
+                        Some("Relay authentication required".to_string()),
+                        Some(retry_count),
+                        Some(host),
+                        None,
+                    );
+                    retry_count = retry_count.saturating_add(1);
+                    thread::sleep(Duration::from_millis(1500));
+                    continue;
+                }
+
+                if !status.is_success() {
+                    state.consecutive_transient_errors.store(0, Ordering::Relaxed);
+                    set_interconnect_status(
+                        &app,
+                        "degraded",
+                        Some(format!("Relay responded with {}", status.as_u16())),
+                        Some(retry_count),
+                        Some(host),
+                        None,
+                    );
+                    retry_count = retry_count.saturating_add(1);
+                    thread::sleep(Duration::from_millis(1200));
+                    continue;
+                }
+
+                retry_count = 0;
+                set_interconnect_status(
+                    &app,
+                    "healthy",
+                    None,
+                    Some(retry_count),
+                    Some(host.clone()),
+                    Some(now_ms_u64()),
+                );
+
+                let mut reader = BufReader::new(response);
+                let mut line = String::new();
+                let mut block_lines: Vec<String> = Vec::new();
+                let mut stream_error_message: Option<String> = None;
+
+                loop {
+                    line.clear();
+                    let read = match reader.read_line(&mut line) {
+                        Ok(read) => read,
+                        Err(err) => {
+                            let message = err.to_string();
+                            if is_transient_interconnect_stream_error(&message) {
+                                log::info!("[interconnect] stream interrupted: {message}");
+                                let count = state.consecutive_transient_errors.fetch_add(1, Ordering::Relaxed) + 1;
+                                if count >= 5 {
+                                    set_interconnect_status(
+                                        &app,
+                                        "reconnecting",
+                                        Some(format!("Multiple transient errors: {message}")),
+                                        Some(retry_count),
+                                        Some(host.clone()),
+                                        None,
+                                    );
+                                }
+                            } else {
+                                log::warn!("[interconnect] stream read failed: {message}");
+                                state.consecutive_transient_errors.store(0, Ordering::Relaxed);
+                            }
+                            stream_error_message = Some(message);
+                            break;
+                        }
+                    };
+
+                    if read == 0 {
+                        state.consecutive_transient_errors.store(0, Ordering::Relaxed);
+                        break;
+                    }
+
+                    let current_nonce = state.reconnect_nonce.load(Ordering::Relaxed);
+                    if current_nonce != previous_nonce {
+                        previous_nonce = current_nonce;
+                        break;
+                    }
+
+                    let trimmed = line.trim_end_matches(['\r', '\n']);
+                    if trimmed.is_empty() {
+                        if block_lines.is_empty() {
+                            continue;
+                        }
+
+                        let mut event_id: Option<String> = None;
+                        let mut data_lines: Vec<String> = Vec::new();
+                        for raw_line in &block_lines {
+                            if let Some(rest) = raw_line.strip_prefix("id:") {
+                                event_id = Some(rest.trim().to_string());
+                                continue;
+                            }
+                            if let Some(rest) = raw_line.strip_prefix("data:") {
+                                data_lines.push(rest.trim_start().to_string());
+                            }
+                        }
+                        block_lines.clear();
+
+                        if let Some(id) = event_id.as_ref().filter(|id| !id.is_empty()) {
+                            *state
+                                .last_event_id
+                                .lock()
+                                .expect("interconnect last_event_id mutex") = Some(id.clone());
+                            *state
+                                .last_success_event_id
+                                .lock()
+                                .expect("interconnect last_success_event_id mutex") = Some(id.clone());
+
+                            let now = now_ms_u64();
+                            if now.saturating_sub(last_persisted_event_write_at) > 2000 {
+                                let _ = write_interconnect_field_to_disk(INTERCONNECT_LAST_EVENT_ID_KEY, id);
+                                last_persisted_event_write_at = now;
+                            }
+                        }
+
+                        if data_lines.is_empty() {
+                            continue;
+                        }
+
+                        let payload_text = data_lines.join("\n");
+                        if payload_text.trim().is_empty() {
+                            continue;
+                        }
+
+                        let payload = match serde_json::from_str::<serde_json::Value>(&payload_text) {
+                            Ok(payload) => payload,
+                            Err(_) => continue,
+                        };
+
+                        let event_time = now_ms_u64();
+                        state.consecutive_transient_errors.store(0, Ordering::Relaxed);
+                        set_interconnect_status(
+                            &app,
+                            "healthy",
+                            None,
+                            Some(retry_count),
+                            None,
+                            Some(event_time),
+                        );
+                        emit_interconnect_event(&app, &payload);
+                        continue;
+                    }
+
+                    block_lines.push(trimmed.to_string());
+                }
+
+                if let Some(message) = stream_error_message {
+                    set_interconnect_status(
+                        &app,
+                        "degraded",
+                        Some(format!("Relay stream interrupted: {message}")),
+                        Some(retry_count),
+                        Some(host),
+                        None,
+                    );
+                    retry_count = retry_count.saturating_add(1);
+                } else {
+                    set_interconnect_status(
+                        &app,
+                        "reconnecting",
+                        Some("Relay stream closed, reconnecting".to_string()),
+                        Some(retry_count),
+                        Some(host),
+                        None,
+                    );
+                    retry_count = retry_count.saturating_add(1);
+                }
+            }
+            Err(err) => {
+                let err_text = err.to_string();
+                if is_transient_interconnect_stream_error(&err_text) {
+                    let count = state.consecutive_transient_errors.fetch_add(1, Ordering::Relaxed) + 1;
+                    if count >= 5 {
+                        set_interconnect_status(
+                            &app,
+                            "reconnecting",
+                            Some(format!("Multiple transient errors: {err_text}")),
+                            Some(retry_count),
+                            Some(host),
+                            None,
+                        );
+                    }
+                } else {
+                    state.consecutive_transient_errors.store(0, Ordering::Relaxed);
+                    set_interconnect_status(
+                        &app,
+                        "degraded",
+                        Some(format!("Relay stream failed: {}", err_text)),
+                        Some(retry_count),
+                        Some(host),
+                        None,
+                    );
+                }
+                retry_count = retry_count.saturating_add(1);
+            }
+        }
+
+        let nonce = state.reconnect_nonce.load(Ordering::Relaxed);
+        if nonce != previous_nonce {
+            previous_nonce = nonce;
+            continue;
+        }
+
+        let backoff = if retry_count <= 3 {
+            400u64.saturating_mul(2u64.saturating_pow(retry_count))
+        } else {
+            3000
+        };
+        thread::sleep(Duration::from_millis(backoff.min(3000)));
+    }
+}
+
+fn start_interconnect_relay(app: &tauri::AppHandle) {
+    let Some(state) = app.try_state::<InterconnectRelayState>() else {
+        return;
+    };
+
+    let already_started = state.started.swap(true, Ordering::SeqCst);
+    if already_started {
+        return;
+    }
+
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        run_interconnect_relay(handle);
+    });
+}
+
 #[tauri::command]
 fn desktop_hosts_get() -> Result<DesktopHostsConfig, String> {
     Ok(read_desktop_hosts_config_from_disk())
@@ -1349,6 +2335,478 @@ async fn desktop_host_probe(url: String) -> Result<HostProbeResult, String> {
             latency_ms: started.elapsed().as_millis() as u64,
         }),
     }
+}
+
+#[tauri::command]
+fn desktop_interconnect_state(app: tauri::AppHandle) -> Result<InterconnectStateSnapshot, String> {
+    Ok(current_interconnect_snapshot(&app))
+}
+
+#[tauri::command]
+fn desktop_interconnect_force_reconnect(
+    app: tauri::AppHandle,
+    reason: Option<String>,
+) -> Result<bool, String> {
+    let Some(state) = app.try_state::<InterconnectRelayState>() else {
+        return Ok(false);
+    };
+
+    state.reconnect_nonce.fetch_add(1, Ordering::Relaxed);
+    let normalized_reason = reason
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| Some("Manual reconnect requested".to_string()));
+
+    let retry_count = state
+        .status
+        .lock()
+        .expect("interconnect status mutex")
+        .retry_count;
+
+    set_interconnect_status(
+        &app,
+        "reconnecting",
+        normalized_reason,
+        Some(retry_count),
+        None,
+        Some(now_ms_u64()),
+    );
+
+    Ok(true)
+}
+
+#[tauri::command]
+fn desktop_browser_init(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let _ = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_set_bounds(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    visible: Option<bool>,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+    let webview = app
+        .get_webview(&webview_label)
+        .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+
+    let should_show = visible.unwrap_or(true) && width > 2.0 && height > 2.0;
+    if should_show {
+        webview
+            .set_position(LogicalPosition::new(x.max(0.0), y.max(0.0)))
+            .map_err(|err| err.to_string())?;
+        webview
+            .set_size(LogicalSize::new(width.max(1.0), height.max(1.0)))
+            .map_err(|err| err.to_string())?;
+        let _ = webview.show();
+    } else {
+        let _ = webview.hide();
+    }
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_navigate(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+    let target = coerce_desktop_browser_url(&url);
+    let parsed = url::Url::parse(&target).map_err(|err| format!("Invalid URL: {err}"))?;
+
+    {
+        let state = app.state::<DesktopBrowserState>();
+        let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+        let window_state = ensure_desktop_browser_window_state(&mut windows, &window_label);
+        if window_state.active_index >= window_state.tabs.len() {
+            window_state.active_index = window_state.tabs.len().saturating_sub(1);
+        }
+        if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+            update_tab_for_navigation(tab, target.clone(), true);
+        }
+    }
+
+    let webview = app
+        .get_webview(&webview_label)
+        .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+    if let Err(err) = webview.navigate(parsed) {
+        update_desktop_browser_active_tab(&app, &window_label, |tab| {
+            tab.is_loading = false;
+            tab.last_error = Some(err.to_string());
+        });
+        return Err(err.to_string());
+    }
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_back(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+
+    let target_url = {
+        let state = app.state::<DesktopBrowserState>();
+        let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+        let window_state = ensure_desktop_browser_window_state(&mut windows, &window_label);
+        if window_state.active_index >= window_state.tabs.len() {
+            window_state.active_index = window_state.tabs.len().saturating_sub(1);
+        }
+        if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+            update_desktop_browser_tab_depths(tab);
+            if tab.history_index == 0 {
+                None
+            } else {
+                tab.history_index = tab.history_index.saturating_sub(1);
+                let target = tab
+                    .history
+                    .get(tab.history_index)
+                    .cloned()
+                    .unwrap_or_else(|| tab.url.clone());
+                update_tab_for_navigation(tab, target.clone(), false);
+                Some(target)
+            }
+        } else {
+            None
+        }
+    };
+
+    if let Some(target) = target_url {
+        let parsed = url::Url::parse(&target).map_err(|err| format!("Invalid URL: {err}"))?;
+        let webview = app
+            .get_webview(&webview_label)
+            .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+        if let Err(err) = webview.navigate(parsed) {
+            update_desktop_browser_active_tab(&app, &window_label, |tab| {
+                tab.is_loading = false;
+                tab.last_error = Some(err.to_string());
+            });
+            return Err(err.to_string());
+        }
+    }
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_forward(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+
+    let target_url = {
+        let state = app.state::<DesktopBrowserState>();
+        let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+        let window_state = ensure_desktop_browser_window_state(&mut windows, &window_label);
+        if window_state.active_index >= window_state.tabs.len() {
+            window_state.active_index = window_state.tabs.len().saturating_sub(1);
+        }
+        if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+            update_desktop_browser_tab_depths(tab);
+            if tab.history_index + 1 >= tab.history.len() {
+                None
+            } else {
+                tab.history_index = tab.history_index.saturating_add(1);
+                let target = tab
+                    .history
+                    .get(tab.history_index)
+                    .cloned()
+                    .unwrap_or_else(|| tab.url.clone());
+                update_tab_for_navigation(tab, target.clone(), false);
+                Some(target)
+            }
+        } else {
+            None
+        }
+    };
+
+    if let Some(target) = target_url {
+        let parsed = url::Url::parse(&target).map_err(|err| format!("Invalid URL: {err}"))?;
+        let webview = app
+            .get_webview(&webview_label)
+            .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+        if let Err(err) = webview.navigate(parsed) {
+            update_desktop_browser_active_tab(&app, &window_label, |tab| {
+                tab.is_loading = false;
+                tab.last_error = Some(err.to_string());
+            });
+            return Err(err.to_string());
+        }
+    }
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_reload(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+    let webview = app
+        .get_webview(&webview_label)
+        .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+
+    update_desktop_browser_active_tab(&app, &window_label, |tab| {
+        tab.is_loading = true;
+        tab.last_error = None;
+        tab.suppress_next_history_push = true;
+    });
+
+    if let Err(err) = webview.reload() {
+        update_desktop_browser_active_tab(&app, &window_label, |tab| {
+            tab.is_loading = false;
+            tab.last_error = Some(err.to_string());
+        });
+        return Err(err.to_string());
+    }
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_stop(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+    let webview = app
+        .get_webview(&webview_label)
+        .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+
+    let _ = webview.eval("window.stop();");
+    update_desktop_browser_active_tab(&app, &window_label, |tab| {
+        tab.is_loading = false;
+    });
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectionState {
+    pub text: String,
+    pub url: String,
+    pub title: String,
+    pub timestamp: u64,
+}
+
+#[tauri::command]
+fn desktop_browser_selection_state(
+    window: tauri::Window,
+) -> Result<Option<SelectionState>, String> {
+    // Note: in Tauri v2, we might need a different way to get the webview selection 
+    // if we want it to be fully synchronous or use the new webview objects.
+    // For now, we'll keep the script approach but use the window directly if it's a single-webview window.
+    
+    // This is a placeholder for actual selection retrieval which usually requires 
+    // async JS execution. In a real desktop app, we'd often track this via IPC 
+    // from the webview side (onselectionchange).
+    
+    Ok(None)
+}
+
+#[tauri::command]
+fn desktop_browser_new_page(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+    url: Option<String>,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+    let target = coerce_desktop_browser_url(url.as_deref().unwrap_or("about:blank"));
+    let parsed = url::Url::parse(&target).map_err(|err| format!("Invalid URL: {err}"))?;
+
+    {
+        let state = app.state::<DesktopBrowserState>();
+        let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+        let window_state = ensure_desktop_browser_window_state(&mut windows, &window_label);
+        let next_id = desktop_browser_tab_id(window_state.next_tab_number);
+        window_state.next_tab_number = window_state.next_tab_number.saturating_add(1);
+        window_state.tabs.push(create_desktop_browser_tab(next_id, target.clone()));
+        window_state.active_index = window_state.tabs.len().saturating_sub(1);
+        if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+            update_tab_for_navigation(tab, target.clone(), false);
+        }
+    }
+
+    let webview = app
+        .get_webview(&webview_label)
+        .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+    if let Err(err) = webview.navigate(parsed) {
+        update_desktop_browser_active_tab(&app, &window_label, |tab| {
+            tab.is_loading = false;
+            tab.last_error = Some(err.to_string());
+        });
+        return Err(err.to_string());
+    }
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_select_page(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+    page_idx: Option<usize>,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+    let mut target_url: Option<String> = None;
+
+    {
+        let state = app.state::<DesktopBrowserState>();
+        let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+        let window_state = ensure_desktop_browser_window_state(&mut windows, &window_label);
+        if window_state.tabs.is_empty() {
+            window_state.tabs.push(create_desktop_browser_tab(
+                desktop_browser_tab_id(window_state.next_tab_number),
+                DESKTOP_BROWSER_HOME_URL.to_string(),
+            ));
+            window_state.next_tab_number = window_state.next_tab_number.saturating_add(1);
+        }
+        let requested = page_idx.unwrap_or(window_state.active_index);
+        let clamped = requested.min(window_state.tabs.len().saturating_sub(1));
+        window_state.active_index = clamped;
+        if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+            tab.is_loading = true;
+            tab.last_error = None;
+            tab.suppress_next_history_push = true;
+            update_desktop_browser_tab_depths(tab);
+            target_url = Some(tab.url.clone());
+        }
+    }
+
+    if let Some(target) = target_url {
+        let parsed = url::Url::parse(&target).map_err(|err| format!("Invalid URL: {err}"))?;
+        let webview = app
+            .get_webview(&webview_label)
+            .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+        if let Err(err) = webview.navigate(parsed) {
+            update_desktop_browser_active_tab(&app, &window_label, |tab| {
+                tab.is_loading = false;
+                tab.last_error = Some(err.to_string());
+            });
+            return Err(err.to_string());
+        }
+    }
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_close_page(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+    page_idx: Option<usize>,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let webview_label = ensure_desktop_browser_webview(&app, &window, &window_label)?;
+    let mut target_url: Option<String> = None;
+
+    {
+        let state = app.state::<DesktopBrowserState>();
+        let mut windows = state.windows.lock().expect("desktop browser windows mutex");
+        let window_state = ensure_desktop_browser_window_state(&mut windows, &window_label);
+        if window_state.tabs.len() <= 1 {
+            if let Some(tab) = window_state.tabs.get_mut(0) {
+                update_desktop_browser_tab_depths(tab);
+            }
+        } else {
+            let requested = page_idx.unwrap_or(window_state.active_index);
+            let clamped = requested.min(window_state.tabs.len().saturating_sub(1));
+            window_state.tabs.remove(clamped);
+            if window_state.active_index >= window_state.tabs.len() {
+                window_state.active_index = window_state.tabs.len().saturating_sub(1);
+            } else if clamped <= window_state.active_index && window_state.active_index > 0 {
+                window_state.active_index = window_state.active_index.saturating_sub(1);
+            }
+        }
+
+        if window_state.tabs.is_empty() {
+            window_state.tabs.push(create_desktop_browser_tab(
+                desktop_browser_tab_id(window_state.next_tab_number),
+                DESKTOP_BROWSER_HOME_URL.to_string(),
+            ));
+            window_state.next_tab_number = window_state.next_tab_number.saturating_add(1);
+            window_state.active_index = 0;
+        }
+
+        if let Some(tab) = window_state.tabs.get_mut(window_state.active_index) {
+            tab.is_loading = true;
+            tab.last_error = None;
+            tab.suppress_next_history_push = true;
+            update_desktop_browser_tab_depths(tab);
+            target_url = Some(tab.url.clone());
+        }
+    }
+
+    if let Some(target) = target_url {
+        let parsed = url::Url::parse(&target).map_err(|err| format!("Invalid URL: {err}"))?;
+        let webview = app
+            .get_webview(&webview_label)
+            .ok_or_else(|| "Desktop browser pane is unavailable".to_string())?;
+        if let Err(err) = webview.navigate(parsed) {
+            update_desktop_browser_active_tab(&app, &window_label, |tab| {
+                tab.is_loading = false;
+                tab.last_error = Some(err.to_string());
+            });
+            return Err(err.to_string());
+        }
+    }
+
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    emit_desktop_browser_state(&app, &window_label);
+    Ok(payload)
+}
+
+#[tauri::command]
+fn desktop_browser_state(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+) -> Result<DesktopBrowserStatePayload, String> {
+    let window_label = window.label().to_string();
+    let payload = desktop_browser_state_payload_for_window(&app, &window_label);
+    Ok(payload)
 }
 
 #[derive(Clone, Serialize)]
@@ -1504,7 +2962,7 @@ fn maybe_show_sidecar_notification(app: &tauri::AppHandle, payload: SidecarNotif
     let title = payload
         .title
         .filter(|t| is_nonempty_string(t))
-        .unwrap_or_else(|| "OpenChamber".to_string());
+        .unwrap_or_else(|| "KronosChamber".to_string());
     let body = payload.body.filter(|b| is_nonempty_string(b));
     let _tag = payload.tag;
 
@@ -1841,7 +3299,7 @@ fn desktop_notify(
     let mut builder = app
         .notification()
         .builder()
-        .title(payload.title.unwrap_or_else(|| "OpenChamber".to_string()));
+        .title(payload.title.unwrap_or_else(|| "KronosChamber".to_string()));
 
     if let Some(body) = payload.body {
         if is_nonempty_string(&body) {
@@ -1981,6 +3439,49 @@ fn desktop_new_window_at_url(app: tauri::AppHandle, url: String) -> Result<(), S
         .and_then(|state| state.local_origin.lock().expect("desktop local origin mutex").clone())
         .ok_or_else(|| "Local origin not yet known (sidecar may still be starting)".to_string())?;
 
+    let local_server_url = app
+        .try_state::<SidecarState>()
+        .and_then(|state| state.url.lock().expect("sidecar url mutex").clone())
+        .unwrap_or_else(|| local_origin.clone());
+    let local_ui_url = if cfg!(debug_assertions) {
+        local_origin.clone()
+    } else {
+        local_server_url.clone()
+    };
+    let relay_target_url = resolve_relay_host_for_target(&url, &local_ui_url, &local_server_url)
+        .unwrap_or(local_server_url);
+
+    let mut should_force_reconnect = false;
+    let mut retry_count = 0u32;
+    if let Some(state) = app.try_state::<InterconnectRelayState>() {
+        {
+            let mut relay_host = state.host.lock().expect("interconnect host mutex");
+            if relay_host.as_deref() != Some(relay_target_url.as_str()) {
+                *relay_host = Some(relay_target_url.clone());
+                should_force_reconnect = true;
+            }
+        }
+        retry_count = state.status.lock().expect("interconnect status mutex").retry_count;
+        *state
+            .last_host_decision
+            .lock()
+            .expect("interconnect last_host_decision mutex") = Some(url.clone());
+        if should_force_reconnect {
+            state.reconnect_nonce.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+    let _ = write_interconnect_field_to_disk(INTERCONNECT_LAST_HOST_DECISION_KEY, &url);
+    if should_force_reconnect {
+        set_interconnect_status(
+            &app,
+            "reconnecting",
+            Some("Switching relay host".to_string()),
+            Some(retry_count),
+            Some(relay_target_url),
+            Some(now_ms_u64()),
+        );
+    }
+
     create_window(&app, &url, &local_origin, false).map_err(|e| e.to_string())
 }
 
@@ -2094,7 +3595,7 @@ fn build_init_script(local_origin: &str) -> String {
     let local_json = serde_json::to_string(local_origin).unwrap_or_else(|_| "\"\"".into());
 
     let mut init_script = format!(
-        "(function(){{try{{window.__OPENCHAMBER_HOME__={home_json};window.__OPENCHAMBER_MACOS_MAJOR__={macos_major};window.__OPENCHAMBER_LOCAL_ORIGIN__={local_json};}}catch(_e){{}}}})();"
+        "(function(){{try{{window.__OPENCHAMBER_HOME__={home_json};window.__OPENCHAMBER_MACOS_MAJOR__={macos_major};window.__OPENCHAMBER_LOCAL_ORIGIN__={local_json};window.__OPENCHAMBER_DESKTOP__=true;}}catch(_e){{}}}})();"
     );
 
     // Cleanup: older builds injected a native-ish Instance switcher button into pages.
@@ -2234,7 +3735,7 @@ fn create_window(app: &tauri::AppHandle, url: &str, local_origin: &str, restore_
     };
 
     let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(parsed))
-        .title("OpenChamber")
+        .title("KronosChamber")
         .inner_size(1280.0, 800.0)
         .min_inner_size(MIN_WINDOW_WIDTH as f64, MIN_WINDOW_HEIGHT as f64)
         .decorations(true)
@@ -2289,11 +3790,9 @@ fn create_window(app: &tauri::AppHandle, url: &str, local_origin: &str, restore_
 ///   Server-side data is unaffected. Scoping storage keys per window or adding
 ///   `storage` event listeners would fix this in a future iteration.
 ///
-/// - **Duplicate SSE connections**: Each window opens its own SSE connection to
-///   `/api/global/event`, resulting in N connections for N windows. Each window
-///   independently processes all events and may show duplicate toast notifications.
-///   A SharedWorker, BroadcastChannel leader-election, or Rust-side SSE relay
-///   would consolidate this in a future iteration.
+/// - **Interconnect relay**: Desktop runtime consumes one upstream global stream,
+///   fans out events to all windows, and emits notification events to a single
+///   owner window to prevent duplicate native notifications.
 ///
 /// - **Startup race**: If called before the sidecar finishes starting (local_origin
 ///   not yet set), this function silently bails with a log warning. The user sees
@@ -2341,12 +3840,113 @@ fn open_new_window(app: &tauri::AppHandle) {
 
         if is_cached_unreachable {
             log::info!("[desktop] new window: default host ({}) cached as unreachable, using local", target_url);
-            target_url = local_ui_url;
+            target_url = local_ui_url.clone();
         }
+    }
+
+    let relay_target_url = resolve_relay_host_for_target(&target_url, &local_ui_url, &local_url)
+        .unwrap_or_else(|| local_url.clone());
+
+    let mut should_force_reconnect = false;
+    let mut retry_count = 0u32;
+    if let Some(state) = app.try_state::<InterconnectRelayState>() {
+        {
+            let mut relay_host = state.host.lock().expect("interconnect host mutex");
+            if relay_host.as_deref() != Some(relay_target_url.as_str()) {
+                *relay_host = Some(relay_target_url.clone());
+                should_force_reconnect = true;
+            }
+        }
+        retry_count = state.status.lock().expect("interconnect status mutex").retry_count;
+        *state
+            .last_host_decision
+            .lock()
+            .expect("interconnect last_host_decision mutex") = Some(target_url.clone());
+        if should_force_reconnect {
+            state.reconnect_nonce.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+    let _ = write_interconnect_field_to_disk(INTERCONNECT_LAST_HOST_DECISION_KEY, &target_url);
+    if should_force_reconnect {
+        set_interconnect_status(
+            app,
+            "reconnecting",
+            Some("Switching relay host for new window".to_string()),
+            Some(retry_count),
+            Some(relay_target_url),
+            Some(now_ms_u64()),
+        );
     }
 
     if let Err(err) = create_window(app, &target_url, &local_origin, false) {
         log::error!("[desktop] failed to create new window: {err}");
+    }
+}
+
+async fn check_health_once(url: &str) -> bool {
+    let client = match reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(2))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let health_url = format!("{}/health", url.trim_end_matches('/'));
+    match client.get(&health_url).send().await {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    }
+}
+
+async fn monitor_sidecar(app: tauri::AppHandle) {
+    // Wait a bit for initial startup to settle
+    tokio::time::sleep(Duration::from_secs(10)).await;
+
+    log::info!("[supervisor] starting sidecar health monitoring");
+
+    loop {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+
+        let url = {
+            let state = app.state::<SidecarState>();
+            let current_url = state.url.lock().expect("sidecar url mutex").clone();
+            current_url
+        };
+
+        let needs_restart = if let Some(u) = url {
+            !check_health_once(&u).await
+        } else {
+            // No URL means sidecar isn't running (or we're in dev mode without it)
+            // In release mode, we always want it running.
+            !cfg!(debug_assertions)
+        };
+
+        if needs_restart {
+            log::warn!("[supervisor] sidecar unhealthy or missing, attempting restart...");
+            
+            // cleanup old process
+            kill_sidecar(app.clone());
+            
+            // wait a moment for ports to free
+            tokio::time::sleep(Duration::from_secs(1)).await;
+
+            match spawn_local_server(&app).await {
+                Ok(new_url) => {
+                    log::info!("[supervisor] sidecar restarted at {}", new_url);
+                    // Notify windows to reload/reconnect
+                    let event = serde_json::to_string("openchamber:server-restarted")
+                        .unwrap_or_else(|_| "\"openchamber:server-restarted\"".into());
+                    let detail = serde_json::to_string(&new_url).unwrap_or_else(|_| "\"\"".into());
+                    let script = format!("window.dispatchEvent(new CustomEvent({event}, {{ detail: {detail} }}));");
+                    eval_in_all_windows(&app, &script);
+                }
+                Err(e) => {
+                    log::error!("[supervisor] failed to restart sidecar: {}", e);
+                }
+            }
+        }
     }
 }
 
@@ -2365,6 +3965,8 @@ fn main() {
         .manage(WindowFocusState::default())
         .manage(WindowGeometryDebounceState::default())
         .manage(MenuRuntimeState::default())
+        .manage(InterconnectRelayState::default())
+        .manage(DesktopBrowserState::default())
         .manage(PendingUpdate(Mutex::new(None)))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -2543,6 +4145,13 @@ fn main() {
                 if let Some(state) = app.try_state::<WindowFocusState>() {
                     state.remove_window(&label);
                 }
+                if let Some(state) = app.try_state::<DesktopBrowserState>() {
+                    state
+                        .windows
+                        .lock()
+                        .expect("desktop browser windows mutex")
+                        .remove(&label);
+                }
 
                 // If this was the last window, kill the sidecar and exit.
                 let remaining = app.webview_windows().len();
@@ -2576,6 +4185,20 @@ fn main() {
             desktop_hosts_get,
             desktop_hosts_set,
             desktop_host_probe,
+            desktop_interconnect_state,
+            desktop_interconnect_force_reconnect,
+            desktop_browser_init,
+            desktop_browser_set_bounds,
+            desktop_browser_navigate,
+            desktop_browser_back,
+            desktop_browser_forward,
+            desktop_browser_reload,
+            desktop_browser_stop,
+            desktop_browser_new_page,
+            desktop_browser_select_page,
+            desktop_browser_close_page,
+            desktop_browser_state,
+            desktop_browser_selection_state,
             desktop_read_file,
         ])
         .setup(|app| {
@@ -2627,12 +4250,33 @@ fn main() {
                     .map(|u| u.origin().ascii_serialization())
                     .unwrap_or_else(|| local_ui_url.clone());
 
+                if let Some(state) = handle.try_state::<InterconnectRelayState>() {
+                    let (last_event_id, last_host_decision) = read_desktop_interconnect_fields_from_disk();
+                    if let Some(last_event_id) = last_event_id {
+                        *state
+                            .last_event_id
+                            .lock()
+                            .expect("interconnect last_event_id mutex") = Some(last_event_id.clone());
+                        *state
+                            .last_success_event_id
+                            .lock()
+                            .expect("interconnect last_success_event_id mutex") = Some(last_event_id);
+                    }
+                    if let Some(last_host_decision) = last_host_decision {
+                        *state
+                            .last_host_decision
+                            .lock()
+                            .expect("interconnect last_host_decision mutex") = Some(last_host_decision);
+                    }
+                }
+
                 // Selected host: env override first, then desktop default host, else local.
                 let env_target = std::env::var("OPENCHAMBER_SERVER_URL")
                     .ok()
                     .and_then(|raw| normalize_server_url(&raw));
 
                 let mut initial_url = env_target.unwrap_or_else(|| local_ui_url.clone());
+                let mut used_fallback_local = false;
 
                 if initial_url == local_ui_url {
                     let cfg = read_desktop_hosts_config_from_disk();
@@ -2656,6 +4300,7 @@ fn main() {
                                 local_ui_url
                             );
                             initial_url = local_ui_url.clone();
+                            used_fallback_local = true;
                             // Cache the failure so open_new_window skips this host.
                             if let Some(state) = handle.try_state::<DesktopUiInjectionState>() {
                                 state.unreachable_hosts.lock().expect("unreachable hosts mutex").insert(failed_url);
@@ -2669,6 +4314,7 @@ fn main() {
                                 local_ui_url
                             );
                             initial_url = local_ui_url.clone();
+                            used_fallback_local = true;
                             if let Some(state) = handle.try_state::<DesktopUiInjectionState>() {
                                 state.unreachable_hosts.lock().expect("unreachable hosts mutex").insert(failed_url);
                             }
@@ -2676,9 +4322,43 @@ fn main() {
                     }
                 }
 
-                if let Err(err) = create_window(&handle, &initial_url, &local_origin, true) {
-                    log::error!("[desktop] failed to create window: {err}");
+                let relay_host = resolve_relay_host_for_target(&initial_url, &local_ui_url, &local_url)
+                    .unwrap_or_else(|| local_url.clone());
+                if let Some(state) = handle.try_state::<InterconnectRelayState>() {
+                    *state.host.lock().expect("interconnect host mutex") = Some(relay_host.clone());
+                    *state
+                        .last_host_decision
+                        .lock()
+                        .expect("interconnect last_host_decision mutex") = Some(initial_url.clone());
+                    let mut status = state.status.lock().expect("interconnect status mutex");
+                    status.host = Some(relay_host.clone());
+                    status.retry_count = 0;
+                    status.last_event_at = if used_fallback_local {
+                        Some(now_ms_u64())
+                    } else {
+                        None
+                    };
+                    if used_fallback_local {
+                        status.state = "fallback-local".to_string();
+                        status.reason = Some("Fell back to local host after startup probe".to_string());
+                    } else {
+                        status.state = "reconnecting".to_string();
+                        status.reason = Some("Starting desktop relay".to_string());
+                    }
                 }
+                let _ = write_interconnect_field_to_disk(INTERCONNECT_LAST_HOST_DECISION_KEY, &initial_url);
+                emit_interconnect_status(&handle);
+                start_interconnect_relay(&handle);
+
+                if let Err(err) = create_window(&handle, &initial_url, &local_origin, true) {
+        log::error!("[desktop] failed to create window: {err}");
+    }
+            });
+
+            // Start the service supervisor
+            let monitor_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                monitor_sidecar(monitor_handle).await;
             });
 
             Ok(())

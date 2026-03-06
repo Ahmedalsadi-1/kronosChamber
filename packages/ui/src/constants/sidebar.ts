@@ -23,13 +23,13 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
     {
         id: 'agents',
         label: 'Agents',
-        description: 'Configure OpenCode agents, prompts, and permissions.',
+        description: 'Configure KronosCode agents, prompts, and permissions.',
         icon: RiBrainAi3Line,
     },
     {
         id: 'commands',
         label: 'Commands',
-        description: 'Create and maintain custom slash commands for OpenCode.',
+        description: 'Create and maintain custom slash commands for KronosCode.',
         icon: RiCommandLine,
     },
     {
@@ -64,8 +64,8 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
     },
     {
         id: 'settings',
-        label: 'OpenChamber',
-        description: 'OpenChamber app settings: themes, fonts, and preferences.',
+        label: 'KronosChamber',
+        description: 'KronosChamber app settings: themes, fonts, and preferences.',
         icon: RiSettings3Line,
     },
 ];

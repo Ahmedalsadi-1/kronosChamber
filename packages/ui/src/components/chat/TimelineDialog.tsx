@@ -11,7 +11,7 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { RiLoader4Line, RiSearchLine, RiTimeLine, RiGitBranchLine, RiArrowGoBackLine } from '@remixicon/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { Part } from '@opencode-ai/sdk/v2';
+import type { Part } from '@kronoscode-ai/sdk/v2';
 
 interface TimelineDialogProps {
     open: boolean;

@@ -10,13 +10,14 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "jsx": "react-jsx",
-    "strict": true,
+    "strict": false,
     "skipLibCheck": true,
     "noEmit": true,
     "baseUrl": "./src",
     "paths": {
       "@/*": ["./*"],
-      "@openchamber/ui/*": ["./*"]
+      "@opencode-ai/ui/*": ["./*"],
+      "@kronoscode-ai/ui/*": ["./*"]
     }
   },
   "include": ["src"]

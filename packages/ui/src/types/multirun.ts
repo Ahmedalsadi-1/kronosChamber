@@ -2,7 +2,7 @@
  * Multi-Run Types
  *
  * Multi-Run starts the same prompt against multiple models in parallel,
- * each in its own git worktree and OpenCode session.
+ * each in its own git worktree and KronosCode session.
  */
 
 export interface MultiRunModelSelection {

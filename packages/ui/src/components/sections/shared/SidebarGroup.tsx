@@ -15,7 +15,7 @@ interface SidebarGroupProps {
 }
 
 function getStorageKey(storageKey: string, label: string): string {
-  return `opencode:sidebar-group:${storageKey}:${label}`;
+  return `kronoscode:sidebar-group:${storageKey}:${label}`;
 }
 
 /**

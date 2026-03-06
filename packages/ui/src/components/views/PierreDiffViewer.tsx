@@ -63,7 +63,7 @@ const WEBKIT_SCROLL_FIX_CSS = `
   pre[data-interactive-line-numbers] [data-line-number] {
     touch-action: manipulation;
   }
-  /* Match OpenCode hunk separator sizing */
+  /* Match KronosCode hunk separator sizing */
   [data-diff-header],
   [data-diff] {
     [data-separator] {

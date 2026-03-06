@@ -118,7 +118,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
       return null;
     }
 
-    const injected = (window as unknown as { __OPENCHAMBER_MACOS_MAJOR__?: unknown }).__OPENCHAMBER_MACOS_MAJOR__;
+    const injected = (window as unknown as { __KRONOSCHAMBER_MACOS_MAJOR__?: unknown }).__KRONOSCHAMBER_MACOS_MAJOR__;
     if (typeof injected === 'number' && Number.isFinite(injected) && injected > 0) {
       return injected;
     }

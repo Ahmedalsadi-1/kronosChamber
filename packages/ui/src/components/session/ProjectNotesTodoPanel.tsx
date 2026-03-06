@@ -12,10 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   getProjectNotesAndTodos,
-  OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH,
-  OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH,
+  KRONOSCHAMBER_PROJECT_NOTES_MAX_LENGTH,
+  KRONOSCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH,
   saveProjectNotesAndTodos,
-  type OpenChamberProjectTodoItem,
+  type KronosChamberProjectTodoItem,
   type ProjectRef,
 } from '@/lib/openchamberConfig';
 import { useUIStore } from '@/stores/useUIStore';
@@ -45,7 +45,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
 }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [notes, setNotes] = React.useState('');
-  const [todos, setTodos] = React.useState<OpenChamberProjectTodoItem[]>([]);
+  const [todos, setTodos] = React.useState<KronosChamberProjectTodoItem[]>([]);
   const [newTodoText, setNewTodoText] = React.useState('');
   const [sendingTodoId, setSendingTodoId] = React.useState<string | null>(null);
 
@@ -56,7 +56,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
   const setSessionSwitcherOpen = useUIStore((state) => state.setSessionSwitcherOpen);
 
   const persistProjectData = React.useCallback(
-    async (nextNotes: string, nextTodos: OpenChamberProjectTodoItem[]) => {
+    async (nextNotes: string, nextTodos: KronosChamberProjectTodoItem[]) => {
       if (!projectRef) {
         return false;
       }
@@ -124,7 +124,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
       ...todos,
       {
         id: createTodoId(),
-        text: trimmed.slice(0, OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH),
+        text: trimmed.slice(0, KRONOSCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH),
         completed: false,
         createdAt: Date.now(),
       },
@@ -161,7 +161,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     void persistProjectData(notes, nextTodos);
   }, [notes, persistProjectData, todos]);
 
-  const todoInputValue = newTodoText.slice(0, OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH);
+  const todoInputValue = newTodoText.slice(0, KRONOSCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH);
   const completedTodoCount = todos.reduce((count, todo) => count + (todo.completed ? 1 : 0), 0);
 
   const routeToChat = React.useCallback(() => {
@@ -241,11 +241,11 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-2">
           <h3 className="typography-ui-label font-semibold text-foreground">Quick notes</h3>
-          <span className="typography-meta text-muted-foreground">{notes.length}/{OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH}</span>
+          <span className="typography-meta text-muted-foreground">{notes.length}/{KRONOSCHAMBER_PROJECT_NOTES_MAX_LENGTH}</span>
         </div>
         <Textarea
           value={notes}
-          onChange={(event) => setNotes(event.target.value.slice(0, OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH))}
+          onChange={(event) => setNotes(event.target.value.slice(0, KRONOSCHAMBER_PROJECT_NOTES_MAX_LENGTH))}
           onBlur={handleNotesBlur}
           placeholder="Capture context, reminders, or links"
           className="min-h-24 resize-none"
@@ -272,7 +272,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
         <div className="flex items-center gap-1.5">
           <Input
             value={todoInputValue}
-            onChange={(event) => setNewTodoText(event.target.value.slice(0, OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH))}
+            onChange={(event) => setNewTodoText(event.target.value.slice(0, KRONOSCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH))}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();

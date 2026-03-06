@@ -114,7 +114,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
           <OpenChamberLogo width={64} height={64} />
 
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">OpenChamber</h2>
+            <h2 className="text-lg font-semibold">KronosChamber</h2>
             {displayVersion && (
               <p className="typography-meta text-muted-foreground">
                 Version {displayVersion}
@@ -125,12 +125,12 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
           <p className="typography-meta text-muted-foreground">
             A fan-made interface for{' '}
             <a
-              href="https://opencode.ai/"
+              href="https://kronoscode.ai/"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-foreground transition-colors"
             >
-              OpenCode
+              KronosCode
             </a>{' '}
             agent
           </p>
@@ -152,7 +152,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
                   : 'Copy diagnostics'}
             </button>
             <p className="typography-micro text-muted-foreground">
-              Includes OpenChamber state, OpenCode health, directories, and projects.
+              Includes KronosChamber state, KronosCode health, directories, and projects.
             </p>
           </div>
 
@@ -187,7 +187,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
           </div>
 
           <p className="typography-meta text-muted-foreground/60 pt-2">
-            Made with love to comunity
+            Built for the community
           </p>
         </div>
       </DialogContent>

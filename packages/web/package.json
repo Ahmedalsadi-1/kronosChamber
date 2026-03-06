@@ -1,5 +1,5 @@
 {
-  "name": "@openchamber/web",
+  "name": "@opencode-ai/web",
   "version": "1.7.3",
   "private": false,
   "type": "module",
@@ -19,7 +19,8 @@
     "build:watch": "vite build --watch",
     "type-check": "tsc --noEmit",
     "lint": "eslint \"./src/**/*.{ts,tsx}\" --config ../../eslint.config.js",
-    "start": "node bin/cli.js serve"
+    "start": "node bin/cli.js serve",
+    "clean": "rm -rf dist .vite"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.3",

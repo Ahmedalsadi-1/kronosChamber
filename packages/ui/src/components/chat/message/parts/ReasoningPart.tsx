@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ComponentType } from 'react';
-import type { Part } from '@opencode-ai/sdk/v2';
+import type { Part } from '@kronoscode-ai/sdk/v2';
 import { RiArrowDownSLine, RiArrowRightSLine, RiBrainAi3Line, RiChatAi3Line } from '@remixicon/react';
 import { cn } from '@/lib/utils';
 import type { ContentChangeReason } from '@/hooks/useChatScrollManager';

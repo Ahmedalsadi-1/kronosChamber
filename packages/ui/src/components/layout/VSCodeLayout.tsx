@@ -107,7 +107,7 @@ export const VSCodeLayout: React.FC = () => {
   const openNewSessionDraft = useSessionStore((state) => state.openNewSessionDraft);
   const [connectionStatus, setConnectionStatus] = React.useState<'connecting' | 'connected' | 'error' | 'disconnected'>(
     () => (typeof window !== 'undefined'
-      ? (window as { __OPENCHAMBER_CONNECTION__?: { status?: string } }).__OPENCHAMBER_CONNECTION__?.status as
+      ? (window as { __KRONOSCHAMBER_CONNECTION__?: { status?: string } }).__KRONOSCHAMBER_CONNECTION__?.status as
         'connecting' | 'connected' | 'error' | 'disconnected' | undefined
       : 'connecting') || 'connecting'
   );
@@ -185,7 +185,7 @@ export const VSCodeLayout: React.FC = () => {
     // before this component registered the event listener.
     const current =
       (typeof window !== 'undefined'
-        ? (window as { __OPENCHAMBER_CONNECTION__?: { status?: string } }).__OPENCHAMBER_CONNECTION__?.status
+        ? (window as { __KRONOSCHAMBER_CONNECTION__?: { status?: string } }).__KRONOSCHAMBER_CONNECTION__?.status
         : undefined) as 'connecting' | 'connected' | 'error' | 'disconnected' | undefined;
     if (current === 'connected' || current === 'connecting' || current === 'error' || current === 'disconnected') {
       setConnectionStatus(current);
@@ -241,7 +241,7 @@ export const VSCodeLayout: React.FC = () => {
           }
         })();
 
-        if (debugEnabled) console.log('[OpenChamber][VSCode][bootstrap] attempt', { configInitialized });
+        if (debugEnabled) console.log('[KronosChamber][VSCode][bootstrap] attempt', { configInitialized });
         if (!configInitialized) {
           await initializeConfig();
         }
@@ -258,14 +258,14 @@ export const VSCodeLayout: React.FC = () => {
         }
 
         const configState = useConfigStore.getState();
-        // If OpenCode is still warming up, the initial provider/agent loads can fail and be swallowed by retries.
+        // If KronosCode is still warming up, the initial provider/agent loads can fail and be swallowed by retries.
         // Only mark bootstrap complete when core datasets are present so we keep retrying on cold starts.
         if (!configState.isInitialized || !configState.isConnected || configState.providers.length === 0 || configState.agents.length === 0) {
           return;
         }
         await loadSessions();
         const sessionsError = useSessionStore.getState().error;
-        if (debugEnabled) console.log('[OpenChamber][VSCode][bootstrap] post-load', {
+        if (debugEnabled) console.log('[KronosChamber][VSCode][bootstrap] post-load', {
           providers: configState.providers.length,
           agents: configState.agents.length,
           sessions: useSessionStore.getState().sessions.length,

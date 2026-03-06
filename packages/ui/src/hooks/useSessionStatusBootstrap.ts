@@ -1,5 +1,5 @@
 import React from 'react';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/opencode/client';
 import { useSessionStore } from '@/stores/useSessionStore';
 
 type SessionStatusPayload = {
@@ -17,7 +17,7 @@ export const useSessionStatusBootstrap = () => {
       try {
         // Use global status to detect busy sessions across all directories,
         // including sessions started externally (e.g., via CLI) before UI opened
-        const statusMap = await opencodeClient.getGlobalSessionStatus();
+        const statusMap = await kronoscodeClient.getGlobalSessionStatus();
         if (cancelled || !statusMap) return;
 
         const nextStatus = new Map<string, SessionStatusPayload>();

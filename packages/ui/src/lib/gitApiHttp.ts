@@ -30,9 +30,9 @@ import type {
 
 declare global {
   interface Window {
-    __OPENCHAMBER_DESKTOP_SERVER__?: {
+    __KRONOSCHAMBER_DESKTOP_SERVER__?: {
       origin: string;
-      opencodePort: number | null;
+      kronoscodePort: number | null;
       apiPrefix: string;
       cliAvailable: boolean;
     };
@@ -43,7 +43,7 @@ const resolveBaseOrigin = (): string => {
   if (typeof window === 'undefined') {
     return '';
   }
-  const desktopOrigin = window.__OPENCHAMBER_DESKTOP_SERVER__?.origin;
+  const desktopOrigin = window.__KRONOSCHAMBER_DESKTOP_SERVER__?.origin;
   if (desktopOrigin) {
     return desktopOrigin;
   }

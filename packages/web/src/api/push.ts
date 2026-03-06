@@ -1,4 +1,5 @@
-import type { PushAPI, PushSubscribePayload, PushUnsubscribePayload } from '@openchamber/ui/lib/api/types';
+import type { PushAPI, PushSubscribePayload, PushUnsubscribePayload } from '@kronoscode-ai/ui/lib/api/types';
+import { getIdentityHeaders } from './identity';
 
 const fetchJson = async <T>(input: RequestInfo | URL, init?: RequestInit): Promise<T | null> => {
   try {
@@ -31,6 +32,7 @@ export const createWebPushAPI = (): PushAPI => ({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getIdentityHeaders(),
       },
       body: JSON.stringify(payload),
     });
@@ -41,6 +43,7 @@ export const createWebPushAPI = (): PushAPI => ({
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
+        ...getIdentityHeaders(),
       },
       body: JSON.stringify(payload),
     });
@@ -51,6 +54,7 @@ export const createWebPushAPI = (): PushAPI => ({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getIdentityHeaders(),
       },
       body: JSON.stringify(payload),
       keepalive: true,

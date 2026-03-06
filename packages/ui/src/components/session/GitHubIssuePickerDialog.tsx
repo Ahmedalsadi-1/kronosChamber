@@ -26,7 +26,7 @@ import { useMessageStore } from '@/stores/messageStore';
 import { useContextStore } from '@/stores/contextStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useGitHubAuthStore } from '@/stores/useGitHubAuthStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { createWorktreeSessionForNewBranch } from '@/lib/worktreeSessionCreator';
 import { generateBranchSlug } from '@/lib/git/branchNameGenerator';
 import type { GitHubIssue, GitHubIssueComment, GitHubIssuesListResult, GitHubIssueSummary } from '@/lib/api/types';
@@ -320,7 +320,7 @@ export function GitHubIssuePickerDialog({
       void useSessionStore.getState().updateSessionTitle(sessionId, sessionTitle).catch(() => undefined);
 
       try {
-        useSessionStore.getState().initializeNewOpenChamberSession(sessionId, useConfigStore.getState().agents);
+        useSessionStore.getState().initializeNewKronosChamberSession(sessionId, useConfigStore.getState().agents);
       } catch {
         // ignore
       }
@@ -419,7 +419,7 @@ Question/Support:
 Do not implement changes until I confirm; end with: “Next actions: <1 sentence>”.`;
       const contextText = buildIssueContextText({ repo: issueRes.repo, issue, comments });
 
-      void opencodeClient.sendMessage({
+      void kronoscodeClient.sendMessage({
         id: sessionId,
         providerID,
         modelID,

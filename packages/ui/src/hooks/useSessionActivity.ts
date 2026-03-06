@@ -3,7 +3,7 @@
 import React from 'react';
 import { useSessionStore } from '@/stores/useSessionStore';
 
-// Mirrors OpenCode SessionStatus: busy|retry|idle.
+// Mirrors KronosCode SessionStatus: busy|retry|idle.
 export type SessionActivityPhase = 'idle' | 'busy' | 'retry';
 
 export interface SessionActivityResult {

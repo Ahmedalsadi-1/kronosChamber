@@ -1,7 +1,7 @@
 import React from 'react';
 import { RiGitBranchLine } from '@remixicon/react';
 
-import { OpenChamberLogo } from '@/components/ui/OpenChamberLogo';
+import { KronosChamberLogo } from '@/components/ui/KronosChamberLogo';
 import { TextLoop } from '@/components/ui/TextLoop';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
@@ -61,7 +61,7 @@ const ChatEmptyState: React.FC<ChatEmptyStateProps> = ({
 
     return (
         <div className="flex flex-col items-center justify-center min-h-full w-full gap-6">
-            <OpenChamberLogo width={140} height={140} className="opacity-20" isAnimated />
+            <KronosChamberLogo width={140} height={140} className="opacity-20" isAnimated />
             {showDraftContext && (
                 <div className="max-w-[calc(100%-2rem)] flex flex-col items-center gap-1">
                     {branchName && (

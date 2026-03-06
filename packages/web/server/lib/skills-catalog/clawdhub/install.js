@@ -16,8 +16,8 @@ const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
 function normalizeUserSkillDir(userSkillDir) {
   if (!userSkillDir) return null;
-  const legacySkillDir = path.join(os.homedir(), '.config', 'opencode', 'skill');
-  const pluralSkillDir = path.join(os.homedir(), '.config', 'opencode', 'skills');
+  const legacySkillDir = path.join(os.homedir(), '.config', 'kronoscode', 'skill');
+  const pluralSkillDir = path.join(os.homedir(), '.config', 'kronoscode', 'skills');
   if (userSkillDir === legacySkillDir) {
     if (fs.existsSync(legacySkillDir) && !fs.existsSync(pluralSkillDir)) return legacySkillDir;
     return pluralSkillDir;
@@ -44,7 +44,7 @@ async function ensureDir(dirPath) {
 }
 
 function getTargetSkillDir({ scope, targetSource, workingDirectory, userSkillDir, skillName }) {
-  const source = targetSource === 'agents' ? 'agents' : 'opencode';
+  const source = targetSource === 'agents' ? 'agents' : 'kronoscode';
 
   if (scope === 'user') {
     if (source === 'agents') {
@@ -61,14 +61,14 @@ function getTargetSkillDir({ scope, targetSource, workingDirectory, userSkillDir
     return path.join(workingDirectory, '.agents', 'skills', skillName);
   }
 
-  return path.join(workingDirectory, '.opencode', 'skills', skillName);
+  return path.join(workingDirectory, '.kronoscode', 'skills', skillName);
 }
 
 /**
  * Install skills from ClawdHub registry
  * @param {Object} options
  * @param {string} options.scope - 'user' or 'project'
- * @param {string} [options.targetSource] - 'opencode' or 'agents'
+ * @param {string} [options.targetSource] - 'kronoscode' or 'agents'
  * @param {string} [options.workingDirectory] - Required for project scope
  * @param {string} options.userSkillDir - User skills directory
  * @param {Array} options.selections - Array of { skillDir, clawdhub: { slug, version } }
@@ -89,7 +89,7 @@ export async function installSkillsFromClawdHub({
     return { ok: false, error: { kind: 'invalidSource', message: 'Invalid scope' } };
   }
 
-  if (targetSource !== undefined && targetSource !== 'opencode' && targetSource !== 'agents') {
+  if (targetSource !== undefined && targetSource !== 'kronoscode' && targetSource !== 'agents') {
     return { ok: false, error: { kind: 'invalidSource', message: 'Invalid target source' } };
   }
 
@@ -134,7 +134,7 @@ export async function installSkillsFromClawdHub({
       const decision = conflictDecisions?.[plan.slug];
       const hasAutoPolicy = conflictPolicy === 'skipAll' || conflictPolicy === 'overwriteAll';
       if (!decision && !hasAutoPolicy) {
-        conflicts.push({ skillName: plan.slug, scope, source: targetSource === 'agents' ? 'agents' : 'opencode' });
+        conflicts.push({ skillName: plan.slug, scope, source: targetSource === 'agents' ? 'agents' : 'kronoscode' });
       }
     }
   }
@@ -220,7 +220,7 @@ export async function installSkillsFromClawdHub({
         await ensureDir(path.dirname(targetDir));
         await fs.promises.rename(tempDir, targetDir);
 
-        installed.push({ skillName: plan.slug, scope, source: targetSource === 'agents' ? 'agents' : 'opencode' });
+        installed.push({ skillName: plan.slug, scope, source: targetSource === 'agents' ? 'agents' : 'kronoscode' });
       } catch (extractError) {
         await safeRm(tempDir);
         throw extractError;

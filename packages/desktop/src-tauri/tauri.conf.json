@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-  "productName": "OpenChamber",
+  "productName": "KronosChamber",
   "version": "1.7.3",
-  "identifier": "ai.opencode.openchamber",
+  "identifier": "ai.kronoscode.openchamber",
   "build": {
     "beforeDevCommand": "node ./scripts/dev-web-server.mjs",
     "beforeBuildCommand": "bun run build:sidecar",
@@ -14,7 +14,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "OpenChamber",
+        "title": "KronosChamber",
         "transparent": false,
         "width": 1280,
         "height": 800,

@@ -1,4 +1,4 @@
-import type { Part } from '@opencode-ai/sdk/v2';
+import type { Part } from '@kronoscode-ai/sdk/v2';
 
 type PartWithText = Part & { text?: string; content?: string; value?: string };
 

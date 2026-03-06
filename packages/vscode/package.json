@@ -20,18 +20,17 @@
     "Other"
   ],
   "keywords": [
-    "ai",
-    "claude",
-    "gpt",
-    "agent",
-    "coding",
-    "chatgpt",
-    "groq",
-    "assistant",
-    "opencode",
-    "openchamber"
-  ],
-  "icon": "assets/app-icon.png",
+  "ai",
+  "claude",
+  "gpt",
+  "agent",
+  "coding",
+  "chatgpt",
+  "groq",
+  "assistant",
+  "opencode",
+  "openchamber"
+  ],  "icon": "assets/app-icon.png",
   "main": "./dist/extension.js",
   "activationEvents": [
     "onCommand:openchamber.openSidebar",
@@ -228,7 +227,7 @@
     "vite": "^7.1.2"
   },
   "dependencies": {
-    "@openchamber/ui": "workspace:*",
+    "@opencode-ai/ui": "workspace:*",
     "@opencode-ai/sdk": "^1.2.5",
     "adm-zip": "^0.5.16",
     "jsonc-parser": "^3.3.1",

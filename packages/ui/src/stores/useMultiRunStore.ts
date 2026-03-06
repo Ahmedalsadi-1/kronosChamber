@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { CreateMultiRunParams, CreateMultiRunResult } from '@/types/multirun';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { saveWorktreeSetupCommands } from '@/lib/openchamberConfig';
 import type { ProjectRef } from '@/lib/worktrees/worktreeManager';
 import { createWorktreeWithDefaults, resolveRootTrackingRemote } from '@/lib/worktrees/worktreeCreate';
@@ -181,9 +181,9 @@ export const useMultiRunStore = create<MultiRunStore>()(
                 ? `${groupSlug}/${model.providerID}/${model.modelID}/${index}`
                 : `${groupSlug}/${model.providerID}/${model.modelID}`;
 
-              const session = await opencodeClient.withDirectory(
+              const session = await kronoscodeClient.withDirectory(
                 worktreeMetadata.path,
-                () => opencodeClient.createSession({ title: sessionTitle })
+                () => kronoscodeClient.createSession({ title: sessionTitle })
               );
 
               useSessionStore.getState().setWorktreeMetadata(session.id, enrichedMetadata);
@@ -242,8 +242,8 @@ export const useMultiRunStore = create<MultiRunStore>()(
               await Promise.allSettled(
                 createdRuns.map(async (run) => {
                   try {
-                      await opencodeClient.withDirectory(run.worktreePath, () =>
-                       opencodeClient.sendMessage({
+                      await kronoscodeClient.withDirectory(run.worktreePath, () =>
+                       kronoscodeClient.sendMessage({
                          id: run.sessionId,
                          providerID: run.providerID,
                          modelID: run.modelID,

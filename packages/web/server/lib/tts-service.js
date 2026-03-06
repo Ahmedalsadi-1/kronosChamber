@@ -21,7 +21,7 @@ function getOpenAIApiKey() {
     return envKey;
   }
 
-  // Then check opencode auth file (same as usage tracker)
+  // Then check kronoscode auth file (same as usage tracker)
   try {
     const auth = readAuthFile();
     // Check for openai, codex, or chatgpt aliases
@@ -90,7 +90,7 @@ class TTSService {
     }
 
     if (!client) {
-      throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY environment variable, configure OpenAI in OpenCode, or provide an API key in settings.');
+      throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY environment variable, configure OpenAI in KronosCode, or provide an API key in settings.');
     }
 
     if (!text.trim()) {
@@ -127,7 +127,7 @@ class TTSService {
   async generateSpeechBuffer(options) {
     const client = this._getClient();
     if (!client) {
-      throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY environment variable or configure OpenAI in OpenCode.');
+      throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY environment variable or configure OpenAI in KronosCode.');
     }
 
     const {

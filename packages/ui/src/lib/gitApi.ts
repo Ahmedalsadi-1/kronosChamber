@@ -34,13 +34,13 @@ export type {
 
 declare global {
   interface Window {
-    __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
+    __KRONOSCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
   }
 }
 
 const getRuntimeGit = () => {
-  if (typeof window !== 'undefined' && window.__OPENCHAMBER_RUNTIME_APIS__?.git) {
-    return window.__OPENCHAMBER_RUNTIME_APIS__.git;
+  if (typeof window !== 'undefined' && window.__KRONOSCHAMBER_RUNTIME_APIS__?.git) {
+    return window.__KRONOSCHAMBER_RUNTIME_APIS__.git;
   }
   return null;
 };

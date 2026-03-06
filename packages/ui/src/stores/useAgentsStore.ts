@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import type { StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
-import type { Agent, PermissionConfig } from "@opencode-ai/sdk/v2";
-import { opencodeClient } from "@/lib/opencode/client";
+import type { Agent, PermissionConfig } from "@kronoscode-ai/sdk/v2";
+import { kronoscodeClient } from "@/lib/kronoscode/client";
 import { emitConfigChange, scopeMatches, subscribeToConfigChanges, type ConfigChangeScope } from "@/lib/configSync";
 import {
   startConfigUpdate,
@@ -17,12 +17,12 @@ import { useSkillsCatalogStore } from "@/stores/useSkillsCatalogStore";
 import { useSkillsStore } from "@/stores/useSkillsStore";
 
 // Note: useDirectoryStore cannot be imported at top level to avoid circular dependency
-// useDirectoryStore -> useAgentsStore (for refreshAfterOpenCodeRestart)
+// useDirectoryStore -> useAgentsStore (for refreshAfterKronosCodeRestart)
 // useAgentsStore -> useDirectoryStore (for currentDirectory)
 const getCurrentDirectory = (): string | null => {
-  const opencodeDirectory = opencodeClient.getDirectory();
-  if (typeof opencodeDirectory === 'string' && opencodeDirectory.trim().length > 0) {
-    return opencodeDirectory;
+  const kronoscodeDirectory = kronoscodeClient.getDirectory();
+  if (typeof kronoscodeDirectory === 'string' && kronoscodeDirectory.trim().length > 0) {
+    return kronoscodeDirectory;
   }
 
   try {
@@ -48,8 +48,8 @@ const getConfigDirectory = (): string | null => {
       return activeProject.path.trim();
     }
 
-    // 2. Fallback: current OpenCode directory (session / runtime)
-    const clientDir = opencodeClient.getDirectory();
+    // 2. Fallback: current KronosCode directory (session / runtime)
+    const clientDir = kronoscodeClient.getDirectory();
     if (clientDir?.trim()) {
       return clientDir.trim();
     }
@@ -87,8 +87,8 @@ export type AgentWithExtras = Agent & {
 };
 
 /** Parse the subfolder group name from an agent file path.
- *  e.g. "~/.config/opencode/agents/business/ceo.md" → "business"
- *  e.g. "~/.config/opencode/agents/ceo.md"          → undefined
+ *  e.g. "~/.config/kronoscode/agents/business/ceo.md" → "business"
+ *  e.g. "~/.config/kronoscode/agents/ceo.md"          → undefined
  */
 function parseAgentGroup(path: string | null | undefined): string | undefined {
   if (!path) return undefined;
@@ -108,7 +108,7 @@ export const isAgentBuiltIn = (agent: Agent): boolean => {
 };
 
 // Helper to check if agent is hidden (internal agents like title, compaction, summary)
-// Checks both top-level hidden and options.hidden (OpenCode API inconsistency workaround)
+// Checks both top-level hidden and options.hidden (KronosCode API inconsistency workaround)
 export const isAgentHidden = (agent: Agent): boolean => {
   const extended = agent as AgentWithExtras;
   return extended.hidden === true || extended.options?.hidden === true;
@@ -192,7 +192,7 @@ export const useAgentsStore = create<AgentsStore>()(
               const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
 
               // Ensure we list agents using the correct project context
-              const agents = await opencodeClient.withDirectory(configDirectory, () => opencodeClient.listAgents());
+              const agents = await kronoscodeClient.withDirectory(configDirectory, () => kronoscodeClient.listAgents());
 
               const agentsWithScope = await Promise.all(
                 agents.map(async (agent) => {
@@ -201,7 +201,7 @@ export const useAgentsStore = create<AgentsStore>()(
                     const response = await fetch(`/api/config/agents/${encodeURIComponent(agent.name)}${queryParams}`, {
                       headers: {
                         'Cache-Control': 'no-cache',
-                        ...(configDirectory ? { 'x-opencode-directory': configDirectory } : {}),
+                        ...(configDirectory ? { 'x-kronoscode-directory': configDirectory } : {}),
                       }
                     });
                     
@@ -281,7 +281,7 @@ export const useAgentsStore = create<AgentsStore>()(
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                ...(configDirectory ? { 'x-opencode-directory': configDirectory } : {}),
+                ...(configDirectory ? { 'x-kronoscode-directory': configDirectory } : {}),
               },
               body: JSON.stringify(agentConfig)
             });
@@ -295,7 +295,7 @@ export const useAgentsStore = create<AgentsStore>()(
             const needsReload = payload?.requiresReload ?? true;
             if (needsReload) {
               requiresReload = true;
-              await refreshAfterOpenCodeRestart({
+              await refreshAfterKronosCodeRestart({
                 message: payload?.message,
                 delayMs: payload?.reloadDelayMs,
                 scopes: ["agents"],
@@ -342,7 +342,7 @@ export const useAgentsStore = create<AgentsStore>()(
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
-                ...(configDirectory ? { 'x-opencode-directory': configDirectory } : {}),
+                ...(configDirectory ? { 'x-kronoscode-directory': configDirectory } : {}),
               },
               body: JSON.stringify(agentConfig)
             });
@@ -356,7 +356,7 @@ export const useAgentsStore = create<AgentsStore>()(
             const needsReload = payload?.requiresReload ?? true;
             if (needsReload) {
               requiresReload = true;
-              await refreshAfterOpenCodeRestart({
+              await refreshAfterKronosCodeRestart({
                 message: payload?.message,
                 delayMs: payload?.reloadDelayMs,
                 scopes: ["agents"],
@@ -390,7 +390,7 @@ export const useAgentsStore = create<AgentsStore>()(
 
             const response = await fetch(`/api/config/agents/${encodeURIComponent(name)}${queryParams}`, {
               method: 'DELETE',
-              headers: configDirectory ? { 'x-opencode-directory': configDirectory } : undefined,
+              headers: configDirectory ? { 'x-kronoscode-directory': configDirectory } : undefined,
             });
 
             const payload = await response.json().catch(() => null);
@@ -402,7 +402,7 @@ export const useAgentsStore = create<AgentsStore>()(
             const needsReload = payload?.requiresReload ?? true;
             if (needsReload) {
               requiresReload = true;
-              await refreshAfterOpenCodeRestart({
+              await refreshAfterKronosCodeRestart({
                 message: payload?.message,
                 delayMs: payload?.reloadDelayMs,
                 scopes: ["agents"],
@@ -458,7 +458,7 @@ if (typeof window !== "undefined") {
   window.__zustand_agents_store__ = useAgentsStore;
 }
 
-async function waitForOpenCodeConnection(delayMs?: number) {
+async function waitForKronosCodeConnection(delayMs?: number) {
   const initialPause = typeof delayMs === "number" && delayMs > 0
     ? Math.min(delayMs, FAST_HEALTH_POLL_INTERVAL_MS)
     : 0;
@@ -473,14 +473,14 @@ async function waitForOpenCodeConnection(delayMs?: number) {
 
   while (Date.now() - start < MAX_HEALTH_WAIT_MS) {
     attempt += 1;
-    updateConfigUpdateMessage(`Waiting for OpenCode… (attempt ${attempt})`);
+    updateConfigUpdateMessage(`Waiting for KronosCode… (attempt ${attempt})`);
 
     try {
-      const isHealthy = await opencodeClient.checkHealth();
+      const isHealthy = await kronoscodeClient.checkHealth();
       if (isHealthy) {
         return;
       }
-      lastError = new Error("OpenCode health check reported not ready");
+      lastError = new Error("KronosCode health check reported not ready");
     } catch (error) {
       lastError = error;
     }
@@ -499,7 +499,7 @@ async function waitForOpenCodeConnection(delayMs?: number) {
     await sleep(waitMs);
   }
 
-  throw lastError || new Error("OpenCode did not become ready in time");
+  throw lastError || new Error("KronosCode did not become ready in time");
 }
 
 type ConfigRefreshMode = "active" | "projects";
@@ -534,7 +534,7 @@ async function performConfigRefresh(options: {
   }
 
   try {
-    await waitForOpenCodeConnection(delayMs);
+    await waitForKronosCodeConnection(delayMs);
 
     const configStore = useConfigStore.getState();
     const agentConfigStore = useAgentsStore.getState();
@@ -586,14 +586,14 @@ async function performConfigRefresh(options: {
     updateConfigUpdateMessage("Refreshing configuration…");
     await Promise.all([...sdkRefreshTasks, ...uiRefreshTasks]);
   } catch {
-    updateConfigUpdateMessage("OpenCode refresh failed. Please retry.");
+    updateConfigUpdateMessage("KronosCode refresh failed. Please retry.");
     await sleep(1500);
   } finally {
     finishConfigUpdate();
   }
 }
 
-export async function refreshAfterOpenCodeRestart(options?: {
+export async function refreshAfterKronosCodeRestart(options?: {
   message?: string;
   delayMs?: number;
   scopes?: ConfigChangeScope[];
@@ -602,13 +602,13 @@ export async function refreshAfterOpenCodeRestart(options?: {
   await performConfigRefresh(options);
 }
 
-export async function reloadOpenCodeConfiguration(options?: {
+export async function reloadKronosCodeConfiguration(options?: {
   message?: string;
   delayMs?: number;
   scopes?: ConfigChangeScope[];
   mode?: ConfigRefreshMode;
 }) {
-  startConfigUpdate(options?.message || "Reloading OpenCode configuration…");
+  startConfigUpdate(options?.message || "Reloading KronosCode configuration…");
 
   try {
 
@@ -631,16 +631,16 @@ export async function reloadOpenCodeConfiguration(options?: {
     };
 
     if (payload?.requiresReload) {
-      await refreshAfterOpenCodeRestart({
+      await refreshAfterKronosCodeRestart({
         ...refreshOptions,
         message: payload.message,
         delayMs: payload.reloadDelayMs,
       });
     } else {
-      await refreshAfterOpenCodeRestart(refreshOptions);
+      await refreshAfterKronosCodeRestart(refreshOptions);
     }
   } catch (error) {
-    console.error('[reloadOpenCodeConfiguration] Failed:', error);
+    console.error('[reloadKronosCodeConfiguration] Failed:', error);
     updateConfigUpdateMessage('Failed to reload configuration. Please try again.');
     await sleep(2000);
     finishConfigUpdate();

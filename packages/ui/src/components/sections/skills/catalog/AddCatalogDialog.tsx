@@ -234,7 +234,7 @@ export const AddCatalogDialog: React.FC<AddCatalogDialogProps> = ({ open, onOpen
         <DialogHeader>
           <DialogTitle>Add skills catalog</DialogTitle>
           <DialogDescription>
-            Add a Git repository as a new catalog source. OpenChamber will scan it for folders containing <code className="font-mono">SKILL.md</code>.
+            Add a Git repository as a new catalog source. KronosChamber will scan it for folders containing <code className="font-mono">SKILL.md</code>.
           </DialogDescription>
         </DialogHeader>
 

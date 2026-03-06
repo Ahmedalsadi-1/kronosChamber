@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import {
   SKILL_DIR,
-  OPENCODE_CONFIG_DIR,
+  KRONOSCODE_CONFIG_DIR,
   SKILL_SCOPE,
   ensureDirs,
   parseMdFile,
@@ -22,11 +22,11 @@ import {
 } from './shared.js';
 
 function ensureProjectSkillDir(workingDirectory) {
-  const projectSkillDir = path.join(workingDirectory, '.opencode', 'skills');
+  const projectSkillDir = path.join(workingDirectory, '.kronoscode', 'skills');
   if (!fs.existsSync(projectSkillDir)) {
     fs.mkdirSync(projectSkillDir, { recursive: true });
   }
-  const legacyProjectSkillDir = path.join(workingDirectory, '.opencode', 'skill');
+  const legacyProjectSkillDir = path.join(workingDirectory, '.kronoscode', 'skill');
   if (!fs.existsSync(legacyProjectSkillDir)) {
     fs.mkdirSync(legacyProjectSkillDir, { recursive: true });
   }
@@ -34,29 +34,29 @@ function ensureProjectSkillDir(workingDirectory) {
 }
 
 function getProjectSkillDir(workingDirectory, skillName) {
-  const pluralPath = path.join(workingDirectory, '.opencode', 'skills', skillName);
-  const legacyPath = path.join(workingDirectory, '.opencode', 'skill', skillName);
+  const pluralPath = path.join(workingDirectory, '.kronoscode', 'skills', skillName);
+  const legacyPath = path.join(workingDirectory, '.kronoscode', 'skill', skillName);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 }
 
 function getProjectSkillPath(workingDirectory, skillName) {
-  const pluralPath = path.join(workingDirectory, '.opencode', 'skills', skillName, 'SKILL.md');
-  const legacyPath = path.join(workingDirectory, '.opencode', 'skill', skillName, 'SKILL.md');
+  const pluralPath = path.join(workingDirectory, '.kronoscode', 'skills', skillName, 'SKILL.md');
+  const legacyPath = path.join(workingDirectory, '.kronoscode', 'skill', skillName, 'SKILL.md');
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 }
 
 function getUserSkillDir(skillName) {
   const pluralPath = path.join(SKILL_DIR, skillName);
-  const legacyPath = path.join(OPENCODE_CONFIG_DIR, 'skill', skillName);
+  const legacyPath = path.join(KRONOSCODE_CONFIG_DIR, 'skill', skillName);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 }
 
 function getUserSkillPath(skillName) {
   const pluralPath = path.join(SKILL_DIR, skillName, 'SKILL.md');
-  const legacyPath = path.join(OPENCODE_CONFIG_DIR, 'skill', skillName, 'SKILL.md');
+  const legacyPath = path.join(KRONOSCODE_CONFIG_DIR, 'skill', skillName, 'SKILL.md');
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 }
@@ -94,7 +94,7 @@ function getSkillScope(skillName, workingDirectory) {
   if (workingDirectory) {
     const projectPath = getProjectSkillPath(workingDirectory, skillName);
     if (fs.existsSync(projectPath)) {
-      return { scope: SKILL_SCOPE.PROJECT, path: projectPath, source: 'opencode' };
+      return { scope: SKILL_SCOPE.PROJECT, path: projectPath, source: 'kronoscode' };
     }
     
     const claudePath = getClaudeSkillPath(workingDirectory, skillName);
@@ -105,7 +105,7 @@ function getSkillScope(skillName, workingDirectory) {
   
   const userPath = getUserSkillPath(skillName);
   if (fs.existsSync(userPath)) {
-    return { scope: SKILL_SCOPE.USER, path: userPath, source: 'opencode' };
+    return { scope: SKILL_SCOPE.USER, path: userPath, source: 'kronoscode' };
   }
   
   return { scope: null, path: null, source: null };
@@ -122,14 +122,14 @@ function getSkillWritePath(skillName, workingDirectory, requestedScope) {
     return { 
       scope: SKILL_SCOPE.PROJECT, 
       path: getProjectSkillPath(workingDirectory, skillName),
-      source: 'opencode'
+      source: 'kronoscode'
     };
   }
   
   return { 
     scope: SKILL_SCOPE.USER, 
     path: getUserSkillPath(skillName),
-    source: 'opencode'
+    source: 'kronoscode'
   };
 }
 
@@ -159,19 +159,19 @@ function discoverSkills(workingDirectory) {
   }
 
   const configDirectories = resolveSkillSearchDirectories(workingDirectory);
-  const homeOpencodeDir = path.resolve(path.join(os.homedir(), '.opencode'));
-  const customConfigDir = process.env.OPENCODE_CONFIG_DIR
-    ? path.resolve(process.env.OPENCODE_CONFIG_DIR)
+  const homeOpencodeDir = path.resolve(path.join(os.homedir(), '.kronoscode'));
+  const customConfigDir = process.env.KRONOSCODE_CONFIG_DIR
+    ? path.resolve(process.env.KRONOSCODE_CONFIG_DIR)
     : null;
   for (const dir of configDirectories) {
     for (const subDir of ['skill', 'skills']) {
       const root = path.join(dir, subDir);
       for (const skillMdPath of walkSkillMdFiles(root)) {
-        const isUserConfigDir = dir === OPENCODE_CONFIG_DIR
+        const isUserConfigDir = dir === KRONOSCODE_CONFIG_DIR
           || dir === homeOpencodeDir
           || (customConfigDir && dir === customConfigDir);
         const scope = isUserConfigDir ? SKILL_SCOPE.USER : SKILL_SCOPE.PROJECT;
-        addSkillFromMdFile(skills, skillMdPath, scope, 'opencode');
+        addSkillFromMdFile(skills, skillMdPath, scope, 'kronoscode');
       }
     }
   }
@@ -192,16 +192,16 @@ function discoverSkills(workingDirectory) {
       ? path.resolve(expanded)
       : path.resolve(workingDirectory || process.cwd(), expanded);
     for (const skillMdPath of walkSkillMdFiles(resolved)) {
-      addSkillFromMdFile(skills, skillMdPath, SKILL_SCOPE.PROJECT, 'opencode');
+      addSkillFromMdFile(skills, skillMdPath, SKILL_SCOPE.PROJECT, 'kronoscode');
     }
   }
 
   const cacheCandidates = [];
   if (process.env.XDG_CACHE_HOME) {
-    cacheCandidates.push(path.join(process.env.XDG_CACHE_HOME, 'opencode', 'skills'));
+    cacheCandidates.push(path.join(process.env.XDG_CACHE_HOME, 'kronoscode', 'skills'));
   }
-  cacheCandidates.push(path.join(os.homedir(), '.cache', 'opencode', 'skills'));
-  cacheCandidates.push(path.join(os.homedir(), 'Library', 'Caches', 'opencode', 'skills'));
+  cacheCandidates.push(path.join(os.homedir(), '.cache', 'kronoscode', 'skills'));
+  cacheCandidates.push(path.join(os.homedir(), 'Library', 'Caches', 'kronoscode', 'skills'));
 
   for (const cacheRoot of cacheCandidates) {
     if (!fs.existsSync(cacheRoot)) continue;
@@ -210,7 +210,7 @@ function discoverSkills(workingDirectory) {
       if (!entry.isDirectory()) continue;
       const skillRoot = path.join(cacheRoot, entry.name);
       for (const skillMdPath of walkSkillMdFiles(skillRoot)) {
-        addSkillFromMdFile(skills, skillMdPath, SKILL_SCOPE.USER, 'opencode');
+        addSkillFromMdFile(skills, skillMdPath, SKILL_SCOPE.USER, 'kronoscode');
       }
     }
   }
@@ -243,7 +243,7 @@ function getSkillSources(skillName, workingDirectory, discoveredSkill = null) {
   if (projectExists) {
     mdPath = projectPath;
     mdScope = SKILL_SCOPE.PROJECT;
-    mdSource = 'opencode';
+    mdSource = 'kronoscode';
     mdDir = projectDir;
   } else if (claudeExists) {
     mdPath = claudePath;
@@ -253,7 +253,7 @@ function getSkillSources(skillName, workingDirectory, discoveredSkill = null) {
   } else if (userExists) {
     mdPath = userPath;
     mdScope = SKILL_SCOPE.USER;
-    mdSource = 'opencode';
+    mdSource = 'kronoscode';
     mdDir = userDir;
   } else if (matchedDiscovered?.path) {
     mdPath = matchedDiscovered.path;
@@ -325,7 +325,7 @@ function createSkill(skillName, config, workingDirectory, scope) {
   let targetScope;
   
   const requestedScope = scope === SKILL_SCOPE.PROJECT ? SKILL_SCOPE.PROJECT : SKILL_SCOPE.USER;
-  const requestedSource = config?.source === 'agents' ? 'agents' : 'opencode';
+  const requestedSource = config?.source === 'agents' ? 'agents' : 'kronoscode';
 
   if (requestedScope === SKILL_SCOPE.PROJECT && workingDirectory) {
     ensureProjectSkillDir(workingDirectory);

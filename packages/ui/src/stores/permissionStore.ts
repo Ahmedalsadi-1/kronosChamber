@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
-import { opencodeClient } from "@/lib/opencode/client";
+import { kronoscodeClient } from "@/lib/opencode/client";
 import type { PermissionRequest, PermissionResponse } from "@/types/permission";
 import { isEditPermissionType, getAgentDefaultEditPermission } from "./utils/permissionUtils";
 import { getSafeStorage } from "./utils/safeStorage";
@@ -45,7 +45,7 @@ const executeWithPermissionDirectory = async <T>(sessionId: string, operation: (
         const sessionStore = useSessionStore.getState();
         const directory = sessionStore.getDirectoryForSession(sessionId);
         if (directory) {
-            return opencodeClient.withDirectory(directory, operation);
+            return kronoscodeClient.withDirectory(directory, operation);
         }
     } catch (error) {
         console.warn('Failed to resolve session directory for permission handling:', error);
@@ -108,7 +108,7 @@ export const usePermissionStore = create<PermissionStore>()(
                 },
 
                 respondToPermission: async (sessionId: string, requestId: string, response: PermissionResponse) => {
-                    await executeWithPermissionDirectory(sessionId, () => opencodeClient.replyToPermission(requestId, response));
+                    await executeWithPermissionDirectory(sessionId, () => kronoscodeClient.replyToPermission(requestId, response));
 
                     if (response === 'reject') {
                         const messageStore = useMessageStore.getState();

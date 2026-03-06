@@ -4,12 +4,12 @@ import os from 'node:os';
 import yaml from 'yaml';
 import { parse as parseJsonc } from 'jsonc-parser';
 
-const OPENCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'opencode');
-const AGENT_DIR = path.join(OPENCODE_CONFIG_DIR, 'agents');
-const COMMAND_DIR = path.join(OPENCODE_CONFIG_DIR, 'commands');
-const CONFIG_FILE = path.join(OPENCODE_CONFIG_DIR, 'opencode.json');
-const CUSTOM_CONFIG_FILE = process.env.OPENCODE_CONFIG
-  ? path.resolve(process.env.OPENCODE_CONFIG)
+const KRONOSCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'kronoscode');
+const AGENT_DIR = path.join(KRONOSCODE_CONFIG_DIR, 'agents');
+const COMMAND_DIR = path.join(KRONOSCODE_CONFIG_DIR, 'commands');
+const CONFIG_FILE = path.join(KRONOSCODE_CONFIG_DIR, 'kronoscode.json');
+const CUSTOM_CONFIG_FILE = process.env.KRONOSCODE_CONFIG
+  ? path.resolve(process.env.KRONOSCODE_CONFIG)
   : null;
 const PROMPT_FILE_PATTERN = /^\{file:(.+)\}$/i;
 
@@ -35,7 +35,7 @@ export type ConfigSources = {
 };
 
 const ensureDirs = () => {
-  if (!fs.existsSync(OPENCODE_CONFIG_DIR)) fs.mkdirSync(OPENCODE_CONFIG_DIR, { recursive: true });
+  if (!fs.existsSync(KRONOSCODE_CONFIG_DIR)) fs.mkdirSync(KRONOSCODE_CONFIG_DIR, { recursive: true });
   if (!fs.existsSync(AGENT_DIR)) fs.mkdirSync(AGENT_DIR, { recursive: true });
   if (!fs.existsSync(COMMAND_DIR)) fs.mkdirSync(COMMAND_DIR, { recursive: true });
 };
@@ -43,11 +43,11 @@ const ensureDirs = () => {
 // ============== AGENT SCOPE HELPERS ==============
 
 const ensureProjectAgentDir = (workingDirectory: string): string => {
-  const projectAgentDir = path.join(workingDirectory, '.opencode', 'agents');
+  const projectAgentDir = path.join(workingDirectory, '.kronoscode', 'agents');
   if (!fs.existsSync(projectAgentDir)) {
     fs.mkdirSync(projectAgentDir, { recursive: true });
   }
-  const legacyProjectAgentDir = path.join(workingDirectory, '.opencode', 'agent');
+  const legacyProjectAgentDir = path.join(workingDirectory, '.kronoscode', 'agent');
   if (!fs.existsSync(legacyProjectAgentDir)) {
     fs.mkdirSync(legacyProjectAgentDir, { recursive: true });
   }
@@ -55,8 +55,8 @@ const ensureProjectAgentDir = (workingDirectory: string): string => {
 };
 
 const getProjectAgentPath = (workingDirectory: string, agentName: string): string => {
-  const pluralPath = path.join(workingDirectory, '.opencode', 'agents', `${agentName}.md`);
-  const legacyPath = path.join(workingDirectory, '.opencode', 'agent', `${agentName}.md`);
+  const pluralPath = path.join(workingDirectory, '.kronoscode', 'agents', `${agentName}.md`);
+  const legacyPath = path.join(workingDirectory, '.kronoscode', 'agent', `${agentName}.md`);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 };
@@ -145,7 +145,7 @@ const getUserAgentPath = (agentName: string, lookupCache: AgentLookupCache = glo
 
   if (fs.existsSync(pluralPath)) return pluralPath;
 
-  const legacyPath = path.join(OPENCODE_CONFIG_DIR, 'agent', `${agentName}.md`);
+  const legacyPath = path.join(KRONOSCODE_CONFIG_DIR, 'agent', `${agentName}.md`);
   if (fs.existsSync(legacyPath)) return legacyPath;
 
   const found = getIndexedUserAgentPath(agentName, lookupCache);
@@ -202,11 +202,11 @@ const getAgentWritePath = (
 // ============== COMMAND SCOPE HELPERS ==============
 
 const ensureProjectCommandDir = (workingDirectory: string): string => {
-  const projectCommandDir = path.join(workingDirectory, '.opencode', 'commands');
+  const projectCommandDir = path.join(workingDirectory, '.kronoscode', 'commands');
   if (!fs.existsSync(projectCommandDir)) {
     fs.mkdirSync(projectCommandDir, { recursive: true });
   }
-  const legacyProjectCommandDir = path.join(workingDirectory, '.opencode', 'command');
+  const legacyProjectCommandDir = path.join(workingDirectory, '.kronoscode', 'command');
   if (!fs.existsSync(legacyProjectCommandDir)) {
     fs.mkdirSync(legacyProjectCommandDir, { recursive: true });
   }
@@ -214,15 +214,15 @@ const ensureProjectCommandDir = (workingDirectory: string): string => {
 };
 
 const getProjectCommandPath = (workingDirectory: string, commandName: string): string => {
-  const pluralPath = path.join(workingDirectory, '.opencode', 'commands', `${commandName}.md`);
-  const legacyPath = path.join(workingDirectory, '.opencode', 'command', `${commandName}.md`);
+  const pluralPath = path.join(workingDirectory, '.kronoscode', 'commands', `${commandName}.md`);
+  const legacyPath = path.join(workingDirectory, '.kronoscode', 'command', `${commandName}.md`);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 };
 
 const getUserCommandPath = (commandName: string): string => {
   const pluralPath = path.join(COMMAND_DIR, `${commandName}.md`);
-  const legacyPath = path.join(OPENCODE_CONFIG_DIR, 'command', `${commandName}.md`);
+  const legacyPath = path.join(KRONOSCODE_CONFIG_DIR, 'command', `${commandName}.md`);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 };
@@ -274,9 +274,9 @@ const resolvePromptFilePath = (reference: string): string | null => {
   if (!target) return null;
 
   if (target.startsWith('./')) {
-    target = path.join(OPENCODE_CONFIG_DIR, target.slice(2));
+    target = path.join(KRONOSCODE_CONFIG_DIR, target.slice(2));
   } else if (!path.isAbsolute(target)) {
-    target = path.join(OPENCODE_CONFIG_DIR, target);
+    target = path.join(KRONOSCODE_CONFIG_DIR, target);
   }
 
   return target;
@@ -289,15 +289,15 @@ const writePromptFile = (filePath: string, content: string) => {
 
 /**
  * Get all possible project config paths in priority order
- * Priority: root > .opencode/, json > jsonc
+ * Priority: root > .kronoscode/, json > jsonc
  */
 const getProjectConfigCandidates = (workingDirectory?: string): string[] => {
   if (!workingDirectory) return [];
   return [
-    path.join(workingDirectory, 'opencode.json'),
-    path.join(workingDirectory, 'opencode.jsonc'),
-    path.join(workingDirectory, '.opencode', 'opencode.json'),
-    path.join(workingDirectory, '.opencode', 'opencode.jsonc'),
+    path.join(workingDirectory, 'kronoscode.json'),
+    path.join(workingDirectory, 'kronoscode.jsonc'),
+    path.join(workingDirectory, '.kronoscode', 'kronoscode.json'),
+    path.join(workingDirectory, '.kronoscode', 'kronoscode.jsonc'),
   ];
 };
 
@@ -316,7 +316,7 @@ const getProjectConfigPath = (workingDirectory?: string): string | null => {
     }
   }
 
-  // Default to root opencode.json for new configs
+  // Default to root kronoscode.json for new configs
   return candidates[0] || null;
 };
 
@@ -442,17 +442,17 @@ const resolveSkillSearchDirectories = (workingDirectory?: string): string[] => {
     }
   };
 
-  pushDir(OPENCODE_CONFIG_DIR);
+  pushDir(KRONOSCODE_CONFIG_DIR);
 
   if (workingDirectory) {
     const worktreeRoot = findWorktreeRoot(workingDirectory) || path.resolve(workingDirectory);
     const projectDirs = getAncestors(workingDirectory, worktreeRoot)
-      .map((dir) => path.join(dir, '.opencode'));
+      .map((dir) => path.join(dir, '.kronoscode'));
     projectDirs.forEach(pushDir);
   }
 
-  pushDir(path.join(os.homedir(), '.opencode'));
-  pushDir(process.env.OPENCODE_CONFIG_DIR ? path.resolve(process.env.OPENCODE_CONFIG_DIR) : null);
+  pushDir(path.join(os.homedir(), '.kronoscode'));
+  pushDir(process.env.KRONOSCODE_CONFIG_DIR ? path.resolve(process.env.KRONOSCODE_CONFIG_DIR) : null);
 
   return directories;
 };
@@ -509,11 +509,11 @@ const resolveMcpScopeFromPath = (layers: ReturnType<typeof readConfigLayers>, so
 };
 
 const ensureProjectMcpConfigPath = (workingDirectory: string): string => {
-  const projectConfigDir = path.join(workingDirectory, '.opencode');
+  const projectConfigDir = path.join(workingDirectory, '.kronoscode');
   if (!fs.existsSync(projectConfigDir)) {
     fs.mkdirSync(projectConfigDir, { recursive: true });
   }
-  return path.join(projectConfigDir, 'opencode.json');
+  return path.join(projectConfigDir, 'kronoscode.json');
 };
 
 const validateMcpName = (name: string): void => {
@@ -709,14 +709,14 @@ const parseMdFile = (filePath: string): { frontmatter: Record<string, unknown>; 
   try {
     frontmatter = (yaml.parse(match[1]) || {}) as Record<string, unknown>;
   } catch (error) {
-    console.warn(`[OpenChamber][VSCode] Failed to parse frontmatter for ${filePath}, treating as empty:`, error);
+    console.warn(`[KronosChamber][VSCode] Failed to parse frontmatter for ${filePath}, treating as empty:`, error);
     frontmatter = {};
   }
   return { frontmatter, body: (match[2] || '').trim() };
 };
 
 const writeMdFile = (filePath: string, frontmatter: Record<string, unknown>, body: string) => {
-  // Filter out null/undefined values - OpenCode expects keys to be omitted rather than set to null
+  // Filter out null/undefined values - KronosCode expects keys to be omitted rather than set to null
   const cleanedFrontmatter = Object.fromEntries(
     Object.entries(frontmatter ?? {}).filter(([, value]) => value != null)
   );
@@ -782,7 +782,7 @@ export const createAgent = (agentName: string, config: Record<string, unknown>, 
 
   const layers = readConfigLayers(workingDirectory);
   const jsonSource = getJsonEntrySource(layers, 'agent', agentName);
-  if (jsonSource.exists) throw new Error(`Agent ${agentName} already exists in opencode.json`);
+  if (jsonSource.exists) throw new Error(`Agent ${agentName} already exists in kronoscode.json`);
 
   // Determine target path based on requested scope
   let targetPath: string;
@@ -808,7 +808,7 @@ export const updateAgent = (agentName: string, updates: Record<string, unknown>,
   const { path: mdPath } = getAgentWritePath(agentName, workingDirectory);
   const mdExists = mdPath ? fs.existsSync(mdPath) : false;
   
-  // Check if agent exists in opencode.json across all config layers
+  // Check if agent exists in kronoscode.json across all config layers
   const layers = readConfigLayers(workingDirectory);
   const jsonSource = getJsonEntrySource(layers, 'agent', agentName);
   const jsonSection = jsonSource.section as Record<string, unknown> | undefined;
@@ -1010,7 +1010,7 @@ export const createCommand = (commandName: string, config: Record<string, unknow
 
   const layers = readConfigLayers(workingDirectory);
   const jsonSource = getJsonEntrySource(layers, 'command', commandName);
-  if (jsonSource.exists) throw new Error(`Command ${commandName} already exists in opencode.json`);
+  if (jsonSource.exists) throw new Error(`Command ${commandName} already exists in kronoscode.json`);
 
   // Determine target path based on requested scope
   let targetPath: string;
@@ -1258,7 +1258,7 @@ export const deleteCommand = (commandName: string, workingDirectory?: string) =>
 
 // ============== SKILL SCOPE HELPERS ==============
 
-const SKILL_DIR = path.join(OPENCODE_CONFIG_DIR, 'skills');
+const SKILL_DIR = path.join(KRONOSCODE_CONFIG_DIR, 'skills');
 
 export const SKILL_SCOPE = {
   USER: 'user',
@@ -1266,7 +1266,7 @@ export const SKILL_SCOPE = {
 } as const;
 
 export type SkillScope = typeof SKILL_SCOPE[keyof typeof SKILL_SCOPE];
-export type SkillSource = 'opencode' | 'claude' | 'agents';
+export type SkillSource = 'kronoscode' | 'claude' | 'agents';
 
 export type SupportingFile = {
   name: string;
@@ -1336,28 +1336,28 @@ const ensureSkillDirs = () => {
 
 const getUserSkillDir = (skillName: string): string => {
   const pluralPath = path.join(SKILL_DIR, skillName);
-  const legacyPath = path.join(OPENCODE_CONFIG_DIR, 'skill', skillName);
+  const legacyPath = path.join(KRONOSCODE_CONFIG_DIR, 'skill', skillName);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 };
 
 const getUserSkillPath = (skillName: string): string => {
   const pluralPath = path.join(SKILL_DIR, skillName, 'SKILL.md');
-  const legacyPath = path.join(OPENCODE_CONFIG_DIR, 'skill', skillName, 'SKILL.md');
+  const legacyPath = path.join(KRONOSCODE_CONFIG_DIR, 'skill', skillName, 'SKILL.md');
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 };
 
 const getProjectSkillDir = (workingDirectory: string, skillName: string): string => {
-  const pluralPath = path.join(workingDirectory, '.opencode', 'skills', skillName);
-  const legacyPath = path.join(workingDirectory, '.opencode', 'skill', skillName);
+  const pluralPath = path.join(workingDirectory, '.kronoscode', 'skills', skillName);
+  const legacyPath = path.join(workingDirectory, '.kronoscode', 'skill', skillName);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 };
 
 const getProjectSkillPath = (workingDirectory: string, skillName: string): string => {
-  const pluralPath = path.join(workingDirectory, '.opencode', 'skills', skillName, 'SKILL.md');
-  const legacyPath = path.join(workingDirectory, '.opencode', 'skill', skillName, 'SKILL.md');
+  const pluralPath = path.join(workingDirectory, '.kronoscode', 'skills', skillName, 'SKILL.md');
+  const legacyPath = path.join(workingDirectory, '.kronoscode', 'skill', skillName, 'SKILL.md');
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 };
@@ -1389,10 +1389,10 @@ export const getSkillScope = (skillName: string, workingDirectory?: string): {
   }
 
   if (workingDirectory) {
-    // Check .opencode/skill first
+    // Check .kronoscode/skill first
     const projectPath = getProjectSkillPath(workingDirectory, skillName);
     if (fs.existsSync(projectPath)) {
-      return { scope: SKILL_SCOPE.PROJECT, path: projectPath, source: 'opencode' };
+      return { scope: SKILL_SCOPE.PROJECT, path: projectPath, source: 'kronoscode' };
     }
     
     // Check .claude/skills (claude-compat)
@@ -1404,7 +1404,7 @@ export const getSkillScope = (skillName: string, workingDirectory?: string): {
   
   const userPath = getUserSkillPath(skillName);
   if (fs.existsSync(userPath)) {
-    return { scope: SKILL_SCOPE.USER, path: userPath, source: 'opencode' };
+    return { scope: SKILL_SCOPE.USER, path: userPath, source: 'kronoscode' };
   }
   
   return { scope: null, path: null, source: null };
@@ -1466,19 +1466,19 @@ export const discoverSkills = (workingDirectory?: string): DiscoveredSkill[] => 
 
   // 3) Config directories: {skill,skills}/**/SKILL.md
   const configDirectories = resolveSkillSearchDirectories(workingDirectory);
-  const homeOpencodeDir = path.resolve(path.join(os.homedir(), '.opencode'));
-  const customConfigDir = process.env.OPENCODE_CONFIG_DIR
-    ? path.resolve(process.env.OPENCODE_CONFIG_DIR)
+  const homeOpencodeDir = path.resolve(path.join(os.homedir(), '.kronoscode'));
+  const customConfigDir = process.env.KRONOSCODE_CONFIG_DIR
+    ? path.resolve(process.env.KRONOSCODE_CONFIG_DIR)
     : null;
   for (const dir of configDirectories) {
     for (const subDir of ['skill', 'skills']) {
       const root = path.join(dir, subDir);
       for (const skillMdPath of walkSkillMdFiles(root)) {
-        const isUserConfigDir = dir === OPENCODE_CONFIG_DIR
+        const isUserConfigDir = dir === KRONOSCODE_CONFIG_DIR
           || dir === homeOpencodeDir
           || (customConfigDir && dir === customConfigDir);
         const scope = isUserConfigDir ? SKILL_SCOPE.USER : SKILL_SCOPE.PROJECT;
-        addSkillFromMdFile(skills, skillMdPath, scope, 'opencode');
+        addSkillFromMdFile(skills, skillMdPath, scope, 'kronoscode');
       }
     }
   }
@@ -1501,17 +1501,17 @@ export const discoverSkills = (workingDirectory?: string): DiscoveredSkill[] => 
       ? path.resolve(expanded)
       : path.resolve(workingDirectory || process.cwd(), expanded);
     for (const skillMdPath of walkSkillMdFiles(resolved)) {
-      addSkillFromMdFile(skills, skillMdPath, SKILL_SCOPE.PROJECT, 'opencode');
+      addSkillFromMdFile(skills, skillMdPath, SKILL_SCOPE.PROJECT, 'kronoscode');
     }
   }
 
   // 5) Cached skills from config.skills.urls pulls (best-effort, no network)
   const cacheCandidates: string[] = [];
   if (process.env.XDG_CACHE_HOME) {
-    cacheCandidates.push(path.join(process.env.XDG_CACHE_HOME, 'opencode', 'skills'));
+    cacheCandidates.push(path.join(process.env.XDG_CACHE_HOME, 'kronoscode', 'skills'));
   }
-  cacheCandidates.push(path.join(os.homedir(), '.cache', 'opencode', 'skills'));
-  cacheCandidates.push(path.join(os.homedir(), 'Library', 'Caches', 'opencode', 'skills'));
+  cacheCandidates.push(path.join(os.homedir(), '.cache', 'kronoscode', 'skills'));
+  cacheCandidates.push(path.join(os.homedir(), 'Library', 'Caches', 'kronoscode', 'skills'));
 
   for (const cacheRoot of cacheCandidates) {
     if (!fs.existsSync(cacheRoot)) continue;
@@ -1520,7 +1520,7 @@ export const discoverSkills = (workingDirectory?: string): DiscoveredSkill[] => 
       if (!entry.isDirectory()) continue;
       const skillRoot = path.join(cacheRoot, entry.name);
       for (const skillMdPath of walkSkillMdFiles(skillRoot)) {
-        addSkillFromMdFile(skills, skillMdPath, SKILL_SCOPE.USER, 'opencode');
+        addSkillFromMdFile(skills, skillMdPath, SKILL_SCOPE.USER, 'kronoscode');
       }
     }
   }
@@ -1561,7 +1561,7 @@ export const getSkillSources = (
   if (projectExists) {
     mdPath = projectPath;
     mdScope = SKILL_SCOPE.PROJECT;
-    mdSource = 'opencode';
+    mdSource = 'kronoscode';
     mdDir = projectDir;
   } else if (claudeExists) {
     mdPath = claudePath;
@@ -1571,7 +1571,7 @@ export const getSkillSources = (
   } else if (userExists) {
     mdPath = userPath;
     mdScope = SKILL_SCOPE.USER;
-    mdSource = 'opencode';
+    mdSource = 'kronoscode';
     mdDir = userDir;
   } else if (matchedDiscovered?.path) {
     mdPath = matchedDiscovered.path;
@@ -1663,7 +1663,7 @@ export const createSkill = (skillName: string, config: Record<string, unknown>, 
   let targetDir: string;
   
   const requestedScope = scope === SKILL_SCOPE.PROJECT ? SKILL_SCOPE.PROJECT : SKILL_SCOPE.USER;
-  const requestedSource: SkillSource = config.source === 'agents' ? 'agents' : 'opencode';
+  const requestedSource: SkillSource = config.source === 'agents' ? 'agents' : 'kronoscode';
 
   if (requestedScope === SKILL_SCOPE.PROJECT && workingDirectory) {
     targetDir = requestedSource === 'agents'
@@ -1754,7 +1754,7 @@ export const deleteSkill = (skillName: string, workingDirectory?: string): void 
   
   // Check and delete from all locations
   if (workingDirectory) {
-    // Project level .opencode/skill/
+    // Project level .kronoscode/skill/
     const projectDir = getProjectSkillDir(workingDirectory, skillName);
     if (fs.existsSync(projectDir)) {
       fs.rmSync(projectDir, { recursive: true, force: true });

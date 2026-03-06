@@ -312,7 +312,7 @@ export const WorktreeSectionContent: React.FC = () => {
                 <RiInformationLine className="h-3.5 w-3.5 text-muted-foreground/60 cursor-help" />
               </TooltipTrigger>
               <TooltipContent sideOffset={8} className="max-w-xs">
-                Worktrees live outside the repo (OpenCode-managed). Deleting a worktree also removes linked sessions.
+                Worktrees live outside the repo (KronosCode-managed). Deleting a worktree also removes linked sessions.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -340,7 +340,7 @@ export const WorktreeSectionContent: React.FC = () => {
                       {worktree.label || worktree.branch || 'Detached HEAD'}
                     </p>
                     <span className="typography-micro text-muted-foreground/60 px-1.5 py-[1px] rounded bg-sidebar-accent/40 flex-shrink-0 self-center leading-none">
-                      OpenCode
+                      KronosCode
                     </span>
                   </div>
                   <p className="typography-micro text-muted-foreground/60 truncate">

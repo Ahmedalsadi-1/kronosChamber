@@ -12,8 +12,8 @@ import { copyTextToClipboard } from '@/lib/clipboard';
 
 export const OpenCodeStatusDialog: React.FC = () => {
   const {
-    isOpenCodeStatusDialogOpen,
-    setOpenCodeStatusDialogOpen,
+    isKronosCodeStatusDialogOpen,
+    setKronosCodeStatusDialogOpen,
     openCodeStatusText,
   } = useUIStore();
 
@@ -24,17 +24,17 @@ export const OpenCodeStatusDialog: React.FC = () => {
 
     const result = await copyTextToClipboard(openCodeStatusText);
     if (result.ok) {
-      toast.success('Copied', { description: 'OpenCode status copied to clipboard.' });
+      toast.success('Copied', { description: 'KronosCode status copied to clipboard.' });
       return;
     }
     toast.error('Copy failed');
   }, [openCodeStatusText]);
 
   return (
-    <Dialog open={isOpenCodeStatusDialogOpen} onOpenChange={setOpenCodeStatusDialogOpen}>
+    <Dialog open={isKronosCodeStatusDialogOpen} onOpenChange={setKronosCodeStatusDialogOpen}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>OpenCode Status</DialogTitle>
+          <DialogTitle>KronosCode Status</DialogTitle>
           <DialogDescription>
             Diagnostic snapshot for support and debugging.
           </DialogDescription>

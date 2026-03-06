@@ -157,7 +157,7 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
         <div className="space-y-1">
           <h1 className="typography-ui-header font-semibold text-lg">Skills Catalog</h1>
           <p className="typography-meta text-muted-foreground">
-            Browse curated repositories and install skills into your OpenCode configuration.
+            Browse curated repositories and install skills into your KronosCode configuration.
           </p>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import type { Provider, Agent } from "@opencode-ai/sdk/v2";
-import { opencodeClient } from "@/lib/opencode/client";
+import { kronoscodeClient } from "@/lib/opencode/client";
 import { scopeMatches, subscribeToConfigChanges } from "@/lib/configSync";
 import type { ModelMetadata } from "@/types";
 import { getSafeStorage } from "./utils/safeStorage";
@@ -331,7 +331,7 @@ const resolveInitialDirectoryKey = (): string => {
         return DIRECTORY_KEY_GLOBAL;
     }
 
-    const directory = opencodeClient.getDirectory() ?? useDirectoryStore.getState().currentDirectory;
+    const directory = kronoscodeClient.getDirectory() ?? useDirectoryStore.getState().currentDirectory;
     return toDirectoryKey(directory);
 };
 
@@ -642,9 +642,9 @@ export const useConfigStore = create<ConfigStore>()(
                                 () => get().modelsMetadata,
                                 (metadata) => set({ modelsMetadata: metadata }),
                             );
-                            const apiResult = await opencodeClient.withDirectory(
+                            const apiResult = await kronoscodeClient.withDirectory(
                                 fromDirectoryKey(directoryKey),
-                                () => opencodeClient.getProviders()
+                                () => kronoscodeClient.getProviders()
                             );
                             const providers = Array.isArray(apiResult?.providers) ? apiResult.providers : [];
                             const defaults = apiResult?.default || {};
@@ -997,7 +997,7 @@ export const useConfigStore = create<ConfigStore>()(
                         try {
                             // Fetch agents and OpenChamber settings in parallel
                             const [agents, openChamberDefaults] = await Promise.all([
-                                opencodeClient.withDirectory(fromDirectoryKey(directoryKey), () => opencodeClient.listAgents()),
+                                kronoscodeClient.withDirectory(fromDirectoryKey(directoryKey), () => kronoscodeClient.listAgents()),
                                 fetchOpenChamberDefaults(),
                             ]);
 
@@ -1113,7 +1113,7 @@ export const useConfigStore = create<ConfigStore>()(
                             }
 
                              // --- Model Selection ---
-                             // Priority: settings.defaultModel → agent's preferred model → opencode/big-pickle
+                             // Priority: settings.defaultModel → agent's preferred model → kronoscode/big-pickle
                              let resolvedProviderId: string | undefined;
                              let resolvedModelId: string | undefined;
                              let resolvedVariant: string | undefined;
@@ -1150,7 +1150,7 @@ export const useConfigStore = create<ConfigStore>()(
                                 }
                             }
 
-                            // 3. Fall back to opencode/big-pickle
+                            // 3. Fall back to kronoscode/big-pickle
                             if (!resolvedProviderId) {
                                 if (validateModel(FALLBACK_PROVIDER_ID, FALLBACK_MODEL_ID)) {
                                     resolvedProviderId = FALLBACK_PROVIDER_ID;
@@ -1304,7 +1304,12 @@ export const useConfigStore = create<ConfigStore>()(
                         const sessionStore = window.__zustand_session_store__;
                         if (sessionStore) {
                             const sessionState = sessionStore.getState();
-                            const { currentSessionId, isOpenChamberCreatedSession, initializeNewOpenChamberSession, getAgentModelForSession } = sessionState;
+                            const {
+                                currentSessionId,
+                                isKronosChamberCreatedSession,
+                                initializeNewKronosChamberSession,
+                                getAgentModelForSession,
+                            } = sessionState;
 
                             if (currentSessionId) {
 
@@ -1315,11 +1320,11 @@ export const useConfigStore = create<ConfigStore>()(
                                 });
                             }
 
-                            if (currentSessionId && isOpenChamberCreatedSession(currentSessionId)) {
+                            if (currentSessionId && isKronosChamberCreatedSession(currentSessionId)) {
                                 const existingAgentModel = getAgentModelForSession(currentSessionId, agentName);
                                 if (!existingAgentModel) {
 
-                                    initializeNewOpenChamberSession(currentSessionId, agents);
+                                    initializeNewKronosChamberSession(currentSessionId, agents);
                                 }
                             }
                         }
@@ -1570,7 +1575,7 @@ export const useConfigStore = create<ConfigStore>()(
 
                     while (attempt < maxAttempts) {
                         try {
-                            const isHealthy = await opencodeClient.checkHealth();
+                            const isHealthy = await kronoscodeClient.checkHealth();
                             set({ isConnected: isHealthy });
                             return isHealthy;
                         } catch (error) {
@@ -1603,7 +1608,7 @@ export const useConfigStore = create<ConfigStore>()(
                         }
 
                         if (debug) console.log("Initializing app...");
-                        await opencodeClient.initApp();
+                        await kronoscodeClient.initApp();
 
                         if (debug) console.log("Loading providers...");
                         await get().loadProviders();

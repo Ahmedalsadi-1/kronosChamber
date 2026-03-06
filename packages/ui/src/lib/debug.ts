@@ -2,7 +2,7 @@
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/opencode/client';
 import { checkIsGitRepository } from '@/lib/gitApi';
 import { streamDebugEnabled } from '@/stores/utils/streamDebug';
 import { copyTextToClipboard as copyPlainTextToClipboard } from '@/lib/clipboard';
@@ -180,7 +180,7 @@ export const debugUtils = {
     const sessionState = useSessionStore.getState();
     const projectsState = useProjectsStore.getState();
     const currentDirectory = directoryState.currentDirectory || null;
-    const opencodeDirectory = opencodeClient.getDirectory() ?? null;
+    const kronoscodeDirectory = kronoscodeClient.getDirectory() ?? null;
 
     const sessions = sessionState.sessions || [];
     const sessionDirectories = new Set<string>();
@@ -215,7 +215,7 @@ export const debugUtils = {
     })();
 
     const runtimeApis = typeof window !== 'undefined'
-      ? (window as any).__OPENCHAMBER_RUNTIME_APIS__
+      ? (window as any).__KRONOSCHAMBER_RUNTIME_APIS__
       : null;
     const isTauriShell = typeof window !== 'undefined' && Boolean((window as any).__TAURI__);
 
@@ -247,7 +247,7 @@ export const debugUtils = {
     let pathInfo: unknown = null;
     let projectInfo: unknown = null;
     let settingsInfo: unknown = null;
-    let opencodeHealth: unknown = null;
+    let kronoscodeHealth: unknown = null;
 
     const pathUrl = currentDirectory
       ? `/api/path?directory=${encodeURIComponent(currentDirectory)}`
@@ -277,7 +277,7 @@ export const debugUtils = {
           parsed = null;
         }
       }
-      opencodeHealth = {
+      kronoscodeHealth = {
         status: resp.status,
         ok: resp.ok,
         contentType,
@@ -286,12 +286,12 @@ export const debugUtils = {
         openCodeRunning: parsed?.openCodeRunning ?? null,
         openCodeSecureConnection: parsed?.openCodeSecureConnection ?? null,
         openCodeAuthSource: parsed?.openCodeAuthSource ?? null,
-        isOpenCodeReady: parsed?.isOpenCodeReady ?? null,
-        lastOpenCodeError: parsed?.lastOpenCodeError ?? null,
+        isKronosCodeReady: parsed?.isKronosCodeReady ?? null,
+        lastKronosCodeError: parsed?.lastKronosCodeError ?? null,
         preview: body ? body.slice(0, 120) : null,
       };
     } catch (error) {
-      opencodeHealth = { error: error instanceof Error ? error.message : String(error) };
+      kronoscodeHealth = { error: error instanceof Error ? error.message : String(error) };
     }
 
     let gitCheck: { isGitRepo: boolean | null; error?: string } = { isGitRepo: null };
@@ -328,9 +328,9 @@ export const debugUtils = {
         : null,
       directories: {
         currentDirectory,
-        opencodeDirectory: (pathInfo as { directory?: string; worktree?: string } | null)?.directory
+        kronoscodeDirectory: (pathInfo as { directory?: string; worktree?: string } | null)?.directory
           || (pathInfo as { worktree?: string } | null)?.worktree
-          || opencodeDirectory,
+          || kronoscodeDirectory,
         homeDirectory: directoryState.homeDirectory || null,
         isHomeReady: directoryState.isHomeReady,
         hasPersistedDirectory: directoryState.hasPersistedDirectory,
@@ -355,10 +355,10 @@ export const debugUtils = {
       },
       git: gitCheck,
       localStorage: localStorageSnapshot,
-      opencode: {
+      kronoscode: {
         pathInfo,
         projectInfo,
-        health: opencodeHealth,
+        health: kronoscodeHealth,
       },
       openchamber: {
         settingsInfo,
@@ -466,9 +466,9 @@ export const debugUtils = {
    showRetryHelp() {
      console.log('[DEBUG] How to handle empty Claude responses:\n');
      console.log('1. Check the last message:');
-    console.log('   __opencodeDebug.getLastAssistantMessage()\n');
+    console.log('   __openchamberDebug.getLastAssistantMessage()\n');
     console.log('2. Find all empty messages in session:');
-    console.log('   __opencodeDebug.findEmptyMessages()\n');
+    console.log('   __openchamberDebug.findEmptyMessages()\n');
     console.log('3. To retry, you can:');
     console.log('   - Edit your last user message and resend');
     console.log('   - Send a follow-up message like "Please provide the response"');
@@ -520,7 +520,11 @@ export const debugUtils = {
     };
 
     const rows = targetMessages.map((message, index) => {
-      const info = message.info ?? {};
+      const info = (message.info ?? {}) as {
+        id?: string;
+        role?: string;
+        time?: { completed?: number };
+      };
       const parts = Array.isArray(message.parts) ? message.parts : [];
 
       const timeInfo = (info.time ?? {}) as { completed?: number };
@@ -587,8 +591,8 @@ export const debugUtils = {
 
       return {
         index,
-        messageId: info.id,
-        role: info.role,
+        messageId: info.id ?? null,
+        role: info.role ?? null,
         completedAt,
         latestToolTimestamp,
         latestReasoningTimestamp,
@@ -674,20 +678,20 @@ export const debugUtils = {
 };
 
 if (typeof window !== 'undefined') {
-  (window as any).__opencodeDebug = debugUtils;
+  (window as any).__openchamberDebug = debugUtils;
   if (streamDebugEnabled()) {
-    console.log('[DEBUG] OpenCode Debug Utils loaded! Use window.__opencodeDebug in console');
+    console.log('[DEBUG] KronosCode Debug Utils loaded! Use window.__openchamberDebug in console');
     console.log('Available commands:');
-    console.log('  __opencodeDebug.getLastAssistantMessage() - Get last assistant message details');
-    console.log('  __opencodeDebug.getAllMessages(truncate?) - List all messages (truncate=true for short preview)');
-    console.log('  __opencodeDebug.truncateMessages(messages) - Truncate long fields in messages array');
-    console.log('  __opencodeDebug.getAppStatus() - Show app status snapshot');
-    console.log('  __opencodeDebug.checkLastMessage() - Check if last message is problematic');
-    console.log('  __opencodeDebug.findEmptyMessages() - Find all empty assistant messages');
-    console.log('  __opencodeDebug.showRetryHelp() - Show instructions for handling empty responses');
-    console.log('  __opencodeDebug.getStreamingState() - Get streaming state info');
-    console.log('  __opencodeDebug.analyzeMessageCompletionConsistency(opts?) - Compare time.completed vs part timings');
-    console.log('  __opencodeDebug.checkCompletionStatus() - Check completion status of last message');
+    console.log('  __openchamberDebug.getLastAssistantMessage() - Get last assistant message details');
+    console.log('  __openchamberDebug.getAllMessages(truncate?) - List all messages (truncate=true for short preview)');
+    console.log('  __openchamberDebug.truncateMessages(messages) - Truncate long fields in messages array');
+    console.log('  __openchamberDebug.getAppStatus() - Show app status snapshot');
+    console.log('  __openchamberDebug.checkLastMessage() - Check if last message is problematic');
+    console.log('  __openchamberDebug.findEmptyMessages() - Find all empty assistant messages');
+    console.log('  __openchamberDebug.showRetryHelp() - Show instructions for handling empty responses');
+    console.log('  __openchamberDebug.getStreamingState() - Get streaming state info');
+    console.log('  __openchamberDebug.analyzeMessageCompletionConsistency(opts?) - Compare time.completed vs part timings');
+    console.log('  __openchamberDebug.checkCompletionStatus() - Check completion status of last message');
   }
 
   window.addEventListener('error', (event) => {

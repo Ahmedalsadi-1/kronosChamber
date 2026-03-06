@@ -4,9 +4,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { spawn, execFile } from 'child_process';
 import { promisify } from 'util';
-import { type OpenCodeManager } from './opencode';
-import { createAgent, createCommand, deleteAgent, deleteCommand, getAgentSources, getCommandSources, updateAgent, updateCommand, type AgentScope, type CommandScope, AGENT_SCOPE, COMMAND_SCOPE, discoverSkills, getSkillSources, createSkill, updateSkill, deleteSkill, readSkillSupportingFile, writeSkillSupportingFile, deleteSkillSupportingFile, type SkillScope, type SkillSource, type DiscoveredSkill, SKILL_SCOPE, getProviderSources, removeProviderConfig, listMcpConfigs, getMcpConfig, createMcpConfig, updateMcpConfig, deleteMcpConfig } from './opencodeConfig';
-import { getProviderAuth, removeProviderAuth } from './opencodeAuth';
+import { type KronosCodeManager } from './kronoscode';
+import { createAgent, createCommand, deleteAgent, deleteCommand, getAgentSources, getCommandSources, updateAgent, updateCommand, type AgentScope, type CommandScope, AGENT_SCOPE, COMMAND_SCOPE, discoverSkills, getSkillSources, createSkill, updateSkill, deleteSkill, readSkillSupportingFile, writeSkillSupportingFile, deleteSkillSupportingFile, type SkillScope, type SkillSource, type DiscoveredSkill, SKILL_SCOPE, getProviderSources, removeProviderConfig, listMcpConfigs, getMcpConfig, createMcpConfig, updateMcpConfig, deleteMcpConfig } from './kronoscodeConfig';
+import { getProviderAuth, removeProviderAuth } from './kronoscodeAuth';
 import { fetchQuotaForProvider, listConfiguredQuotaProviders } from './quotaProviders';
 import * as gitService from './gitService';
 import {
@@ -91,7 +91,7 @@ interface FileSearchResult {
 }
 
 export interface BridgeContext {
-  manager?: OpenCodeManager;
+  manager?: KronosCodeManager;
   context?: vscode.ExtensionContext;
 }
 
@@ -100,7 +100,7 @@ const CLIENT_RELOAD_DELAY_MS = 800;
 const execFileAsync = promisify(execFile);
 const gpgconfCandidates = ['gpgconf', '/opt/homebrew/bin/gpgconf', '/usr/local/bin/gpgconf'];
 
-const OPENCHAMBER_SHARED_SETTINGS_PATH = path.join(os.homedir(), '.config', 'openchamber', 'settings.json');
+const KRONOSCHAMBER_SHARED_SETTINGS_PATH = path.join(os.homedir(), '.config', 'openchamber', 'settings.json');
 
 const isPathInside = (candidatePath: string, parentPath: string): boolean => {
   const normalizedCandidate = path.resolve(candidatePath);
@@ -142,12 +142,12 @@ const inferSkillScopeAndSourceFromLocation = (location: string, workingDirectory
     ? 'agents'
     : resolvedPath.includes(`${path.sep}.claude${path.sep}skills${path.sep}`)
       ? 'claude'
-      : 'opencode';
+      : 'kronoscode';
 
   const projectAncestors = getProjectAncestors(workingDirectory);
   const isProjectScoped = projectAncestors.some((ancestor) => {
     const candidates = [
-      path.join(ancestor, '.opencode'),
+      path.join(ancestor, '.kronoscode'),
       path.join(ancestor, '.claude', 'skills'),
       path.join(ancestor, '.agents', 'skills'),
     ];
@@ -160,11 +160,11 @@ const inferSkillScopeAndSourceFromLocation = (location: string, workingDirectory
 
   const home = os.homedir();
   const userRoots = [
-    path.join(home, '.config', 'opencode'),
-    path.join(home, '.opencode'),
+    path.join(home, '.config', 'kronoscode'),
+    path.join(home, '.kronoscode'),
     path.join(home, '.claude', 'skills'),
     path.join(home, '.agents', 'skills'),
-    process.env.OPENCODE_CONFIG_DIR ? path.resolve(process.env.OPENCODE_CONFIG_DIR) : null,
+    process.env.KRONOSCODE_CONFIG_DIR ? path.resolve(process.env.KRONOSCODE_CONFIG_DIR) : null,
   ].filter((value): value is string => Boolean(value));
 
   if (userRoots.some((root) => isPathInside(resolvedPath, root))) {
@@ -174,7 +174,7 @@ const inferSkillScopeAndSourceFromLocation = (location: string, workingDirectory
   return { scope: 'user', source };
 };
 
-const fetchOpenCodeSkillsFromApi = async (ctx: BridgeContext | undefined, workingDirectory?: string): Promise<DiscoveredSkill[] | null> => {
+const fetchKronosCodeSkillsFromApi = async (ctx: BridgeContext | undefined, workingDirectory?: string): Promise<DiscoveredSkill[] | null> => {
   const apiUrl = ctx?.manager?.getApiUrl();
   if (!apiUrl) {
     return null;
@@ -191,7 +191,7 @@ const fetchOpenCodeSkillsFromApi = async (ctx: BridgeContext | undefined, workin
       method: 'GET',
       headers: {
         Accept: 'application/json',
-        ...(ctx?.manager?.getOpenCodeAuthHeaders() || {}),
+        ...(ctx?.manager?.getKronosCodeAuthHeaders() || {}),
       },
       signal: AbortSignal.timeout(8_000),
     });
@@ -230,7 +230,7 @@ const fetchOpenCodeSkillsFromApi = async (ctx: BridgeContext | undefined, workin
 
 const readSharedSettingsFromDisk = (): Record<string, unknown> => {
   try {
-    const raw = fs.readFileSync(OPENCHAMBER_SHARED_SETTINGS_PATH, 'utf8');
+    const raw = fs.readFileSync(KRONOSCHAMBER_SHARED_SETTINGS_PATH, 'utf8');
     const parsed = JSON.parse(raw) as unknown;
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return parsed as Record<string, unknown>;
@@ -243,11 +243,11 @@ const readSharedSettingsFromDisk = (): Record<string, unknown> => {
 
 const writeSharedSettingsToDisk = async (changes: Record<string, unknown>): Promise<void> => {
   try {
-    await fs.promises.mkdir(path.dirname(OPENCHAMBER_SHARED_SETTINGS_PATH), { recursive: true });
+    await fs.promises.mkdir(path.dirname(KRONOSCHAMBER_SHARED_SETTINGS_PATH), { recursive: true });
     const current = readSharedSettingsFromDisk();
     const next: Record<string, unknown> = { ...current, ...changes };
     // Keep empty-string sentinel (""), so other runtimes can detect explicit clears.
-    await fs.promises.writeFile(OPENCHAMBER_SHARED_SETTINGS_PATH, JSON.stringify(next, null, 2), 'utf8');
+    await fs.promises.writeFile(KRONOSCHAMBER_SHARED_SETTINGS_PATH, JSON.stringify(next, null, 2), 'utf8');
   } catch {
     // ignore
   }
@@ -258,7 +258,7 @@ const readSettings = (ctx?: BridgeContext) => {
   const restStored = { ...stored };
   delete (restStored as Record<string, unknown>).lastDirectory;
   const shared = readSharedSettingsFromDisk();
-  const sharedOpencodeBinary = typeof shared.opencodeBinary === 'string' ? shared.opencodeBinary.trim() : '';
+  const sharedOpencodeBinary = typeof shared.kronoscodeBinary === 'string' ? shared.kronoscodeBinary.trim() : '';
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
   const themeVariant =
     vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Light ||
@@ -270,9 +270,9 @@ const readSettings = (ctx?: BridgeContext) => {
     themeVariant,
     lastDirectory: workspaceFolder,
     ...restStored,
-    opencodeBinary:
-      typeof restStored.opencodeBinary === 'string'
-        ? String(restStored.opencodeBinary).trim()
+    kronoscodeBinary:
+      typeof restStored.kronoscodeBinary === 'string'
+        ? String(restStored.kronoscodeBinary).trim()
         : (sharedOpencodeBinary || undefined),
   };
 };
@@ -346,7 +346,7 @@ const persistSettings = async (changes: Record<string, unknown>, ctx?: BridgeCon
   const keysToClear = new Set<string>();
 
   // Normalize empty-string clears to key removal (match web/desktop behavior)
-  for (const key of ['defaultModel', 'defaultVariant', 'defaultAgent', 'defaultGitIdentityId', 'opencodeBinary']) {
+  for (const key of ['defaultModel', 'defaultVariant', 'defaultAgent', 'defaultGitIdentityId', 'kronoscodeBinary']) {
     const value = restChanges[key];
     if (typeof value === 'string' && value.trim().length === 0) {
       keysToClear.add(key);
@@ -370,10 +370,10 @@ const persistSettings = async (changes: Record<string, unknown>, ctx?: BridgeCon
   }
   await ctx?.context?.globalState.update(SETTINGS_KEY, merged);
 
-  if (keysToClear.has('opencodeBinary')) {
-    await writeSharedSettingsToDisk({ opencodeBinary: '' });
-  } else if (typeof restChanges.opencodeBinary === 'string') {
-    await writeSharedSettingsToDisk({ opencodeBinary: restChanges.opencodeBinary.trim() });
+  if (keysToClear.has('kronoscodeBinary')) {
+    await writeSharedSettingsToDisk({ kronoscodeBinary: '' });
+  } else if (typeof restChanges.kronoscodeBinary === 'string') {
+    await writeSharedSettingsToDisk({ kronoscodeBinary: restChanges.kronoscodeBinary.trim() });
   }
 
   return merged;
@@ -893,7 +893,7 @@ const collectHeaders = (headers: Headers): Record<string, string> => {
 };
 
 const buildUnavailableApiResponse = (): ApiProxyResponsePayload => {
-  const body = JSON.stringify({ error: 'OpenCode API unavailable' });
+  const body = JSON.stringify({ error: 'KronosCode API unavailable' });
   return {
     status: 503,
     headers: { 'content-type': 'application/json' },
@@ -934,7 +934,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
         const targetUrl = new URL(normalizedPath.replace(/^\/+/, ''), base).toString();
         const requestHeaders: Record<string, string> = {
           ...sanitizeForwardHeaders(headers),
-          ...ctx?.manager?.getOpenCodeAuthHeaders(),
+          ...ctx?.manager?.getKronosCodeAuthHeaders(),
         };
 
         // Ensure SSE requests are negotiated correctly.
@@ -966,7 +966,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
           return { id, type, success: true, data };
         } catch (error) {
           const body = JSON.stringify({
-            error: error instanceof Error ? error.message : 'Failed to reach OpenCode API',
+            error: error instanceof Error ? error.message : 'Failed to reach KronosCode API',
           });
           const data: ApiProxyResponsePayload = {
             status: 502,
@@ -1006,7 +1006,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
         const targetUrl = new URL(normalizedPath.replace(/^\/+/, ''), base).toString();
         const requestHeaders: Record<string, string> = {
           ...sanitizeForwardHeaders(headers),
-          ...ctx?.manager?.getOpenCodeAuthHeaders(),
+          ...ctx?.manager?.getKronosCodeAuthHeaders(),
         };
 
         try {
@@ -1031,7 +1031,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
             ((error as Error & { name?: string }).name === 'TimeoutError' ||
               (error as Error & { name?: string }).name === 'AbortError');
           const body = JSON.stringify({
-            error: isTimeout ? 'OpenCode message forward timed out' : error instanceof Error ? error.message : 'OpenCode message forward failed',
+            error: isTimeout ? 'KronosCode message forward timed out' : error instanceof Error ? error.message : 'KronosCode message forward failed',
           });
           const data: ApiProxyResponsePayload = {
             status: isTimeout ? 504 : 503,
@@ -2055,7 +2055,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
 
         // LIST all skills (no name provided)
         if (!name && normalizedMethod === 'GET') {
-          const skills = (await fetchOpenCodeSkillsFromApi(ctx, workingDirectory)) || discoverSkills(workingDirectory);
+          const skills = (await fetchKronosCodeSkillsFromApi(ctx, workingDirectory)) || discoverSkills(workingDirectory);
           return { id, type, success: true, data: { skills } };
         }
 
@@ -2065,7 +2065,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
         }
 
         if (normalizedMethod === 'GET') {
-          const discoveredSkill = ((await fetchOpenCodeSkillsFromApi(ctx, workingDirectory)) || [])
+          const discoveredSkill = ((await fetchKronosCodeSkillsFromApi(ctx, workingDirectory)) || [])
             .find((skill) => skill.name === skillName);
           const sources = getSkillSources(skillName, workingDirectory, discoveredSkill || null);
           return {
@@ -2080,7 +2080,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
           const scopeValue = body?.scope as string | undefined;
           const sourceValue = body?.source as string | undefined;
           const scope: SkillScope | undefined = scopeValue === 'project' ? SKILL_SCOPE.PROJECT : scopeValue === 'user' ? SKILL_SCOPE.USER : undefined;
-          const normalizedSource = sourceValue === 'agents' ? 'agents' : 'opencode';
+          const normalizedSource = sourceValue === 'agents' ? 'agents' : 'kronoscode';
           createSkill(skillName, { ...(body || {}), source: normalizedSource } as Record<string, unknown>, workingDirectory, scope);
           await ctx?.manager?.restart();
           return {
@@ -2160,7 +2160,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
               .filter((v) => v !== null) as SkillsCatalogSourceConfig[])
           : [];
 
-        const installedSkills = (await fetchOpenCodeSkillsFromApi(ctx, workingDirectory)) || undefined;
+        const installedSkills = (await fetchKronosCodeSkillsFromApi(ctx, workingDirectory)) || undefined;
         const data = await getSkillsCatalog(workingDirectory, refresh, additionalSources, installedSkills);
         return { id, type, success: true, data };
       }
@@ -2179,7 +2179,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
           source?: string;
           subpath?: string;
           scope?: 'user' | 'project';
-          targetSource?: 'opencode' | 'agents';
+          targetSource?: 'kronoscode' | 'agents';
           selections?: Array<{ skillDir: string }>;
           conflictPolicy?: 'prompt' | 'skipAll' | 'overwriteAll';
           conflictDecisions?: Record<string, 'skip' | 'overwrite'>;
@@ -2191,7 +2191,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
           source: String(body.source || ''),
           subpath: body.subpath,
           scope: body.scope === 'project' ? 'project' : 'user',
-          targetSource: body.targetSource === 'agents' ? 'agents' : 'opencode',
+          targetSource: body.targetSource === 'agents' ? 'agents' : 'kronoscode',
           workingDirectory: body.scope === 'project' ? workingDirectory : undefined,
           selections: Array.isArray(body.selections) ? body.selections : [],
           conflictPolicy: body.conflictPolicy,
@@ -2244,7 +2244,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
           return { id, type, success: false, error: 'File path is required' };
         }
 
-        const discoveredSkill = ((await fetchOpenCodeSkillsFromApi(ctx, workingDirectory)) || [])
+        const discoveredSkill = ((await fetchKronosCodeSkillsFromApi(ctx, workingDirectory)) || [])
           .find((skill) => skill.name === skillName);
         const sources = getSkillSources(skillName, workingDirectory, discoveredSkill || null);
         if (!sources.md.dir) {
@@ -2275,7 +2275,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
         return { id, type, success: false, error: `Unsupported method: ${normalizedMethod}` };
       }
 
-      case 'api:opencode/directory': {
+      case 'api:kronoscode/directory': {
         const target = (payload as { path?: string })?.path;
         if (!target) {
           return { id, type, success: false, error: 'Path is required' };
@@ -2285,7 +2285,7 @@ export async function handleBridgeMessage(message: BridgeRequest, ctx?: BridgeCo
         const resolvedPath = resolveUserPath(target, baseDirectory);
         const result = await ctx?.manager?.setWorkingDirectory(resolvedPath);
         if (!result) {
-          return { id, type, success: false, error: 'OpenCode manager unavailable' };
+          return { id, type, success: false, error: 'KronosCode manager unavailable' };
         }
         return { id, type, success: true, data: result };
       }

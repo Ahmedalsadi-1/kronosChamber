@@ -4,7 +4,7 @@ import { code } from '@streamdown/code';
 import { mermaid } from '@streamdown/mermaid';
 import 'streamdown/styles.css';
 import { FadeInOnReveal } from './message/FadeInOnReveal';
-import type { Part } from '@opencode-ai/sdk/v2';
+import type { Part } from '@kronoscode-ai/sdk/v2';
 import { cn } from '@/lib/utils';
 import { RiFileCopyLine, RiCheckLine, RiDownloadLine } from '@remixicon/react';
 import { toast } from '@/components/ui';
@@ -78,7 +78,7 @@ const useMarkdownShikiThemes = (): readonly [string | object, string | object] =
       return fallbackThemes;
     }
 
-    const provided = window.__OPENCHAMBER_VSCODE_SHIKI_THEMES__;
+    const provided = window.__KRONOSCHAMBER_VSCODE_SHIKI_THEMES__;
     if (provided?.light && provided?.dark) {
       const light = withStableStringId(
         { ...(provided.light as Record<string, unknown>) },
@@ -108,7 +108,7 @@ const useMarkdownShikiThemes = (): readonly [string | object, string | object] =
     if (!isVSCode) return;
 
     const handler = (event: Event) => {
-      // Rely on the canonical `window.__OPENCHAMBER_VSCODE_SHIKI_THEMES__` that the webview updates
+      // Rely on the canonical `window.__KRONOSCHAMBER_VSCODE_SHIKI_THEMES__` that the webview updates
       // before dispatching this event, so we always apply stable cache keys and avoid stale token reuse.
       void event;
       setThemes(getThemes());

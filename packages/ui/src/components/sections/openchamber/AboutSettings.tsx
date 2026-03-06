@@ -134,7 +134,7 @@ export const AboutSettings: React.FC = () => {
     <div className="w-full space-y-6">
       <div className="space-y-1">
         <h3 className="typography-ui-header font-semibold text-foreground">
-          About OpenChamber
+          About KronosChamber
         </h3>
       </div>
 

@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
-import type { Message, Part } from "@opencode-ai/sdk/v2";
-import { opencodeClient } from "@/lib/opencode/client";
+import type { Message, Part } from "@kronoscode-ai/sdk/v2";
+import { kronoscodeClient } from "@/lib/kronoscode/client";
 import { isExecutionForkMetaText } from "@/lib/messages/executionMeta";
 import { isLikelyProviderAuthFailure, PROVIDER_AUTH_FAILURE_MESSAGE } from "@/lib/messages/providerAuthError";
 import type { SessionMemoryState, MessageStreamLifecycle, AttachedFile } from "./types/sessionTypes";
@@ -314,7 +314,7 @@ const filterRevertedMessages = (
 const executeWithSessionDirectory = async <T>(sessionId: string | null | undefined, operation: () => Promise<T>): Promise<T> => {
     const directoryOverride = await resolveSessionDirectory(sessionId);
     if (directoryOverride) {
-        return opencodeClient.withDirectory(directoryOverride, operation);
+        return kronoscodeClient.withDirectory(directoryOverride, operation);
     }
     return operation();
 };
@@ -399,7 +399,7 @@ export const useMessageStore = create<MessageStore>()(
                         // Don't pass Infinity to API - use undefined for "fetch all".
                         // For finite loads, overfetch by 1 so hasMoreAbove is accurate.
                         const fetchLimit = noLimit ? undefined : targetLimit + 1;
-                        const allMessages = await executeWithSessionDirectory(sessionId, () => opencodeClient.getSessionMessages(sessionId, fetchLimit));
+                        const allMessages = await executeWithSessionDirectory(sessionId, () => kronoscodeClient.getSessionMessages(sessionId, fetchLimit));
 
                         // Filter out reverted messages first
                         const revertMessageId = getSessionRevertMessageId(sessionId);
@@ -705,8 +705,8 @@ export const useMessageStore = create<MessageStore>()(
                                     })),
                                 }));
 
-                                const apiClient = opencodeClient.getApiClient();
-                                const directory = opencodeClient.getDirectory();
+                                const apiClient = kronoscodeClient.getApiClient();
+                                const directory = kronoscodeClient.getDirectory();
 
                                 if (shellPayload || slashShellPayload) {
                                     await apiClient.session.shell({
@@ -727,7 +727,7 @@ export const useMessageStore = create<MessageStore>()(
                                         modelID,
                                     });
                                 } else if (commandPayload) {
-                                    await opencodeClient.sendCommand({
+                                    await kronoscodeClient.sendCommand({
                                         id: sessionId,
                                         providerID,
                                         modelID,
@@ -738,7 +738,7 @@ export const useMessageStore = create<MessageStore>()(
                                         files: filePayloads.length > 0 ? filePayloads : undefined,
                                     });
                                 } else {
-                                    await opencodeClient.sendMessage({
+                                    await kronoscodeClient.sendMessage({
                                         id: sessionId,
                                         providerID,
                                         modelID,
@@ -802,7 +802,7 @@ export const useMessageStore = create<MessageStore>()(
                             } else if (error.response?.status === 401) {
                                 errorMessage = "Session not found or unauthorized. Please refresh the page.";
                             } else if (error.response?.status === 502) {
-                                errorMessage = "OpenCode is restarting. Please wait a moment and try again.";
+                                errorMessage = "KronosCode is restarting. Please wait a moment and try again.";
                             } else if (error.message?.includes("504") || error.message?.includes("Gateway")) {
                                 errorMessage = "Gateway timeout - your message is being processed. Please wait for response.";
                             } else if (isLikelyProviderAuthFailure(error.message)) {
@@ -982,7 +982,7 @@ export const useMessageStore = create<MessageStore>()(
                         };
                     });
 
-                    void opencodeClient.abortSession(currentSessionId).catch((error) => {
+                    void kronoscodeClient.abortSession(currentSessionId).catch((error) => {
                         console.warn('Abort request failed:', error);
                     });
                 },
@@ -1352,7 +1352,7 @@ export const useMessageStore = create<MessageStore>()(
                             const providerID = state.lastUsedProvider?.providerID || "";
                             const modelID = state.lastUsedProvider?.modelID || "";
                             const now = Date.now();
-                            const cwd = opencodeClient.getDirectory() ?? "/";
+                            const cwd = kronoscodeClient.getDirectory() ?? "/";
                             const contextStore = useContextStore.getState();
                             const sessionAgent = contextStore.getSessionAgentSelection(sessionId)
                                 ?? contextStore.getCurrentAgent(sessionId);
@@ -2500,7 +2500,7 @@ export const useMessageStore = create<MessageStore>()(
                         const fetchLimit = desiredLimit + 1;
                         const allMessages = await executeWithSessionDirectory(
                             sessionId,
-                            () => opencodeClient.getSessionMessages(sessionId, fetchLimit)
+                            () => kronoscodeClient.getSessionMessages(sessionId, fetchLimit)
                         );
 
                         if (direction === "up" && currentMessages.length > 0) {

@@ -224,7 +224,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, isMobile, children }) 
                                             <RiInformationLine className="h-4 w-4" />
                                         </button>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top">About OpenChamber</TooltipContent>
+                                    <TooltipContent side="top">About KronosChamber</TooltipContent>
                                 </Tooltip>
                             )}
                             <Tooltip>

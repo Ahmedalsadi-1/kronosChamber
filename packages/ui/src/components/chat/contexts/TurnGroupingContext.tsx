@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React from 'react';
-import type { Message, Part } from '@opencode-ai/sdk/v2';
+import type { Message, Part } from '@kronoscode-ai/sdk/v2';
 import type { TurnGroupingContext as TurnGroupingContextType } from '../hooks/useTurnGrouping';
 import { detectTurns, type Turn, type TurnActivityPart, type TurnActivityGroup } from '../hooks/useTurnGrouping';
 import { useCurrentSessionActivity } from '@/hooks/useSessionActivity';

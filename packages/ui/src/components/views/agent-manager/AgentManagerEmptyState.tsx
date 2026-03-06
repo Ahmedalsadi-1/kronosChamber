@@ -83,7 +83,7 @@ export const AgentManagerEmptyState: React.FC<AgentManagerEmptyStateProps> = ({
     if (typeof window === 'undefined') {
       return false;
     }
-    const apis = (window as unknown as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } }).__OPENCHAMBER_RUNTIME_APIS__;
+    const apis = (window as unknown as { __KRONOSCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } }).__KRONOSCHAMBER_RUNTIME_APIS__;
     return Boolean(apis?.runtime?.isVSCode);
   }, []);
 

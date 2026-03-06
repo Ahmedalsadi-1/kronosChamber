@@ -1,7 +1,7 @@
 import React from 'react';
 import { RiArrowDownLine } from '@remixicon/react';
 import { useShallow } from 'zustand/react/shallow';
-import type { Message, Part } from '@opencode-ai/sdk/v2';
+import type { Message, Part } from '@kronoscode-ai/sdk/v2';
 
 import { ChatInput } from './ChatInput';
 import { useSessionStore } from '@/stores/useSessionStore';
@@ -9,6 +9,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { Skeleton } from '@/components/ui/skeleton';
 import ChatEmptyState from './ChatEmptyState';
 import MessageList from './MessageList';
+import { FloatingRuntimeWidget } from './runtime/FloatingRuntimeWidget';
 import { ScrollShadow } from '@/components/ui/ScrollShadow';
 import { useChatScrollManager } from '@/hooks/useChatScrollManager';
 import { useDeviceInfo } from '@/lib/device';
@@ -24,6 +25,7 @@ const EMPTY_MESSAGES: Array<{ info: Message; parts: Part[] }> = [];
 const EMPTY_PERMISSIONS: PermissionRequest[] = [];
 const EMPTY_QUESTIONS: QuestionRequest[] = [];
 const IDLE_SESSION_STATUS = { type: 'idle' as const };
+type RuntimeTaskLite = { taskID: string; status: string; updatedAt: number };
 
 const collectVisibleSessionIdsForBlockingRequests = (
     sessions: Array<{ id: string; parentID?: string }> | undefined,
@@ -103,7 +105,23 @@ export const ChatContainer: React.FC = () => {
         isTimelineDialogOpen,
         setTimelineDialogOpen,
         isExpandedInput,
-    } = useUIStore();
+        activeMainTab,
+        runtimeWidgetExpanded,
+        setRuntimeWidgetExpanded,
+        dismissRuntimeWidget,
+        openContextRuntime,
+    } = useUIStore(
+        useShallow((state) => ({
+            isTimelineDialogOpen: state.isTimelineDialogOpen,
+            setTimelineDialogOpen: state.setTimelineDialogOpen,
+            isExpandedInput: state.isExpandedInput,
+            activeMainTab: state.activeMainTab,
+            runtimeWidgetExpanded: state.runtimeWidgetExpanded,
+            setRuntimeWidgetExpanded: state.setRuntimeWidgetExpanded,
+            dismissRuntimeWidget: state.dismissRuntimeWidget,
+            openContextRuntime: state.openContextRuntime,
+        }))
+    );
 
     const sessionMessages = useSessionStore(
         React.useCallback(
@@ -117,6 +135,7 @@ export const ChatContainer: React.FC = () => {
             sessions: state.sessions,
             permissions: state.permissions,
             questions: state.questions,
+            agentModeTasks: (state as { agentModeTasks?: Map<string, RuntimeTaskLite[]> }).agentModeTasks,
         }))
     );
 
@@ -167,6 +186,28 @@ export const ChatContainer: React.FC = () => {
     const draftOpen = Boolean(newSessionDraft?.open);
     const isDesktopExpandedInput = isExpandedInput && !isMobile;
 
+    // Determine runtime widget visibility and state
+    const isBrowserTabActive = activeMainTab === 'browser';
+    const latestTask = React.useMemo(() => {
+        if (!currentSessionId) return null;
+        const tasks = blockingRequestState.agentModeTasks?.get(currentSessionId);
+        if (!tasks || tasks.length === 0) return null;
+        return tasks.reduce((latest: RuntimeTaskLite, task: RuntimeTaskLite) => (task.updatedAt > latest.updatedAt ? task : latest), tasks[0]);
+    }, [blockingRequestState.agentModeTasks, currentSessionId]);
+
+    const isRuntimeTaskActive = latestTask && (latestTask.status === 'queued' || latestTask.status === 'running');
+    const isRuntimeWidgetVisible = isRuntimeTaskActive && !runtimeWidgetExpanded;
+
+    const handleExpandRuntimeWidget = React.useCallback(() => {
+        if (currentSessionId && latestTask) {
+            setRuntimeWidgetExpanded(true);
+            openContextRuntime(currentSessionId, latestTask.taskID);
+        }
+    }, [currentSessionId, latestTask, setRuntimeWidgetExpanded, openContextRuntime]);
+
+    const handleDismissRuntimeWidget = React.useCallback(() => {
+        dismissRuntimeWidget(Date.now());
+    }, [dismissRuntimeWidget]);
     React.useEffect(() => {
         if (!currentSessionId && !draftOpen) {
             openNewSessionDraft();
@@ -575,6 +616,13 @@ export const ChatContainer: React.FC = () => {
                 open={isTimelineDialogOpen}
                 onOpenChange={setTimelineDialogOpen}
                 onScrollToMessage={scrollToMessage}
+            />
+            <FloatingRuntimeWidget
+                isVisible={isRuntimeWidgetVisible}
+                isBrowserTabActive={isBrowserTabActive}
+                isExpanded={runtimeWidgetExpanded}
+                onExpand={handleExpandRuntimeWidget}
+                onDismiss={handleDismissRuntimeWidget}
             />
         </div>
     );

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useFilesViewTabsStore } from '@/stores/useFilesViewTabsStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { ContextPanelContent } from './ContextSidebarTab';
+import { RuntimeContextPanel } from './RuntimeContextPanel';
 
 const CONTEXT_PANEL_MIN_WIDTH = 360;
 const CONTEXT_PANEL_MAX_WIDTH = 1400;
@@ -145,8 +146,22 @@ export const ContextPanel: React.FC = () => {
 
   const activeFilePath = useFilesViewTabsStore((state) => (directoryKey ? (state.byRoot[directoryKey]?.selectedPath ?? null) : null));
 
-  const panelTitle = panelState?.mode === 'diff' ? 'Diff' : panelState?.mode === 'file' ? 'File' : panelState?.mode === 'context' ? 'Context' : panelState?.mode === 'plan' ? 'Plan' : 'Panel';
-  const effectivePath = panelState?.mode === 'file' ? (activeFilePath ?? panelState?.targetPath ?? null) : panelState?.mode === 'context' ? null : (panelState?.targetPath ?? null);
+  const panelTitle = panelState?.mode === 'diff'
+    ? 'Diff'
+    : panelState?.mode === 'file'
+      ? 'File'
+      : panelState?.mode === 'context'
+        ? 'Context'
+        : panelState?.mode === 'plan'
+          ? 'Plan'
+          : panelState?.mode === 'runtime'
+            ? 'Runtime'
+            : 'Panel';
+  const effectivePath = panelState?.mode === 'file'
+    ? (activeFilePath ?? panelState?.targetPath ?? null)
+    : panelState?.mode === 'context' || panelState?.mode === 'runtime'
+      ? null
+      : (panelState?.targetPath ?? null);
   const pathLabel = getRelativePathLabel(effectivePath, effectiveDirectory);
 
   const content = panelState?.mode === 'diff'
@@ -155,8 +170,10 @@ export const ContextPanel: React.FC = () => {
       ? <FilesView mode="editor-only" />
       : panelState?.mode === 'context'
         ? <ContextPanelContent />
-        : panelState?.mode === 'plan'
-          ? <PlanView />
+          : panelState?.mode === 'plan'
+            ? <PlanView />
+            : panelState?.mode === 'runtime'
+            ? <RuntimeContextPanel directory={effectiveDirectory ?? ''} taskID={panelState?.targetPath ?? ''} />
           : null;
 
   const header = (

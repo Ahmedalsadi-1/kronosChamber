@@ -5,9 +5,11 @@ import { getSafeStorage } from './utils/safeStorage';
 import { SEMANTIC_TYPOGRAPHY, getTypographyVariable, type SemanticTypographyKey } from '@/lib/typography';
 import type { ShortcutCombo } from '@/lib/shortcuts';
 
-export type MainTab = 'chat' | 'plan' | 'git' | 'diff' | 'terminal' | 'files';
+export type MainTab = 'chat' | 'plan' | 'browser' | 'git' | 'diff' | 'terminal' | 'files';
 export type RightSidebarTab = 'git' | 'files';
-export type ContextPanelMode = 'diff' | 'file' | 'context' | 'plan';
+export type ContextPanelMode = 'diff' | 'file' | 'context' | 'plan' | 'runtime';
+export type RuntimeWidgetAnchor = 'chat' | 'browser';
+export type BrowserChatLayoutMode = 'split' | 'browser-only' | 'chat-only';
 
 type ContextPanelDirectoryState = {
   isOpen: boolean;
@@ -96,6 +98,13 @@ const clampContextPanelWidth = (width: number): number => {
   return Math.min(CONTEXT_PANEL_MAX_WIDTH, Math.max(CONTEXT_PANEL_MIN_WIDTH, Math.round(width)));
 };
 
+const normalizeBrowserChatLayoutMode = (value: unknown): BrowserChatLayoutMode => {
+  if (value === 'browser-only' || value === 'chat-only' || value === 'split') {
+    return value;
+  }
+  return 'split';
+};
+
 const touchContextPanelState = (prev?: ContextPanelDirectoryState): ContextPanelDirectoryState => {
   if (prev) {
     return { ...prev, touchedAt: Date.now() };
@@ -155,7 +164,7 @@ interface UIStore {
   isCommandPaletteOpen: boolean;
   isHelpDialogOpen: boolean;
   isAboutDialogOpen: boolean;
-  isOpenCodeStatusDialogOpen: boolean;
+  isKronosCodeStatusDialogOpen: boolean;
   openCodeStatusText: string;
   isSessionCreateDialogOpen: boolean;
   isSettingsDialogOpen: boolean;
@@ -216,6 +225,11 @@ interface UIStore {
   isMobileSessionStatusBarCollapsed: boolean;
 
   isExpandedInput: boolean;
+  browserChatLayoutModeDefault: BrowserChatLayoutMode;
+  browserChatLayoutModeByDirectory: Record<string, BrowserChatLayoutMode>;
+  runtimeWidgetExpanded: boolean;
+  runtimeWidgetAnchor: RuntimeWidgetAnchor;
+  runtimeWidgetDismissedAt: number | null;
 
   shortcutOverrides: Record<string, ShortcutCombo>;
 
@@ -231,6 +245,7 @@ interface UIStore {
   openContextFile: (directory: string, filePath: string) => void;
   openContextOverview: (directory: string) => void;
   openContextPlan: (directory: string) => void;
+  openContextRuntime: (directory: string, taskID?: string | null) => void;
   closeContextPanel: (directory: string) => void;
   toggleContextPanelExpanded: (directory: string) => void;
   setContextPanelWidth: (directory: string, width: number) => void;
@@ -250,8 +265,8 @@ interface UIStore {
   toggleHelpDialog: () => void;
   setHelpDialogOpen: (open: boolean) => void;
   setAboutDialogOpen: (open: boolean) => void;
-  setOpenCodeStatusDialogOpen: (open: boolean) => void;
-  setOpenCodeStatusText: (text: string) => void;
+  setKronosCodeStatusDialogOpen: (open: boolean) => void;
+  setKronosCodeStatusText: (text: string) => void;
   setSessionCreateDialogOpen: (open: boolean) => void;
   setSettingsDialogOpen: (open: boolean) => void;
   setModelSelectorOpen: (open: boolean) => void;
@@ -300,6 +315,15 @@ interface UIStore {
   setMaxLastMessageLength: (value: number) => void;
   setPersistChatDraft: (value: boolean) => void;
   setIsMobileSessionStatusBarCollapsed: (value: boolean) => void;
+  setBrowserChatLayoutMode: (
+    mode: BrowserChatLayoutMode,
+    scope?: { directory?: string | null; makeDefault?: boolean }
+  ) => void;
+  toggleBrowserChatLayoutMode: (scope?: { directory?: string | null }) => void;
+  resolveBrowserChatLayoutMode: (directory?: string | null) => BrowserChatLayoutMode;
+  setRuntimeWidgetExpanded: (value: boolean) => void;
+  setRuntimeWidgetAnchor: (value: RuntimeWidgetAnchor) => void;
+  dismissRuntimeWidget: (timestamp?: number | null) => void;
   toggleExpandedInput: () => void;
   setExpandedInput: (value: boolean) => void;
   openMultiRunLauncher: () => void;
@@ -340,7 +364,7 @@ export const useUIStore = create<UIStore>()(
         isCommandPaletteOpen: false,
         isHelpDialogOpen: false,
         isAboutDialogOpen: false,
-        isOpenCodeStatusDialogOpen: false,
+        isKronosCodeStatusDialogOpen: false,
         openCodeStatusText: '',
         isSessionCreateDialogOpen: false,
         isSettingsDialogOpen: false,
@@ -395,6 +419,11 @@ export const useUIStore = create<UIStore>()(
         persistChatDraft: true,
         isMobileSessionStatusBarCollapsed: false,
         isExpandedInput: false,
+        browserChatLayoutModeDefault: 'split',
+        browserChatLayoutModeByDirectory: {},
+        runtimeWidgetExpanded: false,
+        runtimeWidgetAnchor: 'chat',
+        runtimeWidgetDismissedAt: null,
         shortcutOverrides: {},
 
         setTheme: (theme) => {
@@ -578,6 +607,32 @@ export const useUIStore = create<UIStore>()(
                 isOpen: true,
                 mode: 'plan' as const,
                 targetPath: null,
+              },
+            };
+
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) };
+          });
+        },
+
+        openContextRuntime: (directory, taskID) => {
+          const normalizedDirectory = normalizeDirectoryPath((directory || '').trim());
+          const normalizedTaskID = typeof taskID === 'string' && taskID.trim().length > 0
+            ? taskID.trim()
+            : null;
+          if (!normalizedDirectory) {
+            return;
+          }
+
+          set((state) => {
+            const prev = state.contextPanelByDirectory[normalizedDirectory];
+            const current = touchContextPanelState(prev);
+            const byDirectory = {
+              ...state.contextPanelByDirectory,
+              [normalizedDirectory]: {
+                ...current,
+                isOpen: true,
+                mode: 'runtime' as const,
+                targetPath: normalizedTaskID,
               },
             };
 
@@ -772,11 +827,11 @@ export const useUIStore = create<UIStore>()(
           set({ isAboutDialogOpen: open });
         },
 
-        setOpenCodeStatusDialogOpen: (open) => {
-          set({ isOpenCodeStatusDialogOpen: open });
+        setKronosCodeStatusDialogOpen: (open) => {
+          set({ isKronosCodeStatusDialogOpen: open });
         },
 
-        setOpenCodeStatusText: (text) => {
+        setKronosCodeStatusText: (text) => {
           set({ openCodeStatusText: text });
         },
 
@@ -1115,6 +1170,71 @@ export const useUIStore = create<UIStore>()(
         setIsMobileSessionStatusBarCollapsed: (value) => {
           set({ isMobileSessionStatusBarCollapsed: value });
         },
+        setBrowserChatLayoutMode: (mode, scope) => {
+          const normalizedMode = normalizeBrowserChatLayoutMode(mode);
+          const rawDirectory = typeof scope?.directory === 'string' ? scope.directory.trim() : '';
+          const normalizedDirectory = rawDirectory ? normalizeDirectoryPath(rawDirectory) : '';
+          const makeDefault = scope?.makeDefault === true || !normalizedDirectory;
+
+          set((state) => {
+            const next = {
+              ...state.browserChatLayoutModeByDirectory,
+            };
+
+            if (normalizedDirectory) {
+              next[normalizedDirectory] = normalizedMode;
+            }
+
+            return {
+              browserChatLayoutModeDefault: makeDefault
+                ? normalizedMode
+                : state.browserChatLayoutModeDefault,
+              browserChatLayoutModeByDirectory: next,
+            };
+          });
+        },
+        toggleBrowserChatLayoutMode: (scope) => {
+          const rawDirectory = typeof scope?.directory === 'string' ? scope.directory.trim() : '';
+          const normalizedDirectory = rawDirectory ? normalizeDirectoryPath(rawDirectory) : '';
+          const state = get();
+          const current = normalizedDirectory
+            ? normalizeBrowserChatLayoutMode(state.browserChatLayoutModeByDirectory[normalizedDirectory] ?? state.browserChatLayoutModeDefault)
+            : normalizeBrowserChatLayoutMode(state.browserChatLayoutModeDefault);
+          const nextMode: BrowserChatLayoutMode =
+            current === 'split'
+              ? 'browser-only'
+              : current === 'browser-only'
+                ? 'chat-only'
+                : 'split';
+
+          state.setBrowserChatLayoutMode(nextMode, {
+            directory: normalizedDirectory || null,
+            makeDefault: !normalizedDirectory,
+          });
+        },
+        resolveBrowserChatLayoutMode: (directory) => {
+          const state = get();
+          const rawDirectory = typeof directory === 'string' ? directory.trim() : '';
+          const normalizedDirectory = rawDirectory ? normalizeDirectoryPath(rawDirectory) : '';
+          if (normalizedDirectory && state.browserChatLayoutModeByDirectory[normalizedDirectory]) {
+            return normalizeBrowserChatLayoutMode(state.browserChatLayoutModeByDirectory[normalizedDirectory]);
+          }
+          return normalizeBrowserChatLayoutMode(state.browserChatLayoutModeDefault);
+        },
+        setRuntimeWidgetExpanded: (value) => {
+          set({ runtimeWidgetExpanded: value });
+        },
+        setRuntimeWidgetAnchor: (value) => {
+          set({ runtimeWidgetAnchor: value === 'browser' ? 'browser' : 'chat' });
+        },
+        dismissRuntimeWidget: (timestamp) => {
+          set({
+            runtimeWidgetDismissedAt:
+              timestamp === null
+                ? null
+                : (typeof timestamp === 'number' && Number.isFinite(timestamp) ? timestamp : Date.now()),
+          });
+        },
 
         setShortcutOverride: (actionId, combo) => {
           set((state) => ({
@@ -1261,6 +1381,11 @@ export const useUIStore = create<UIStore>()(
           maxLastMessageLength: state.maxLastMessageLength,
           persistChatDraft: state.persistChatDraft,
           isMobileSessionStatusBarCollapsed: state.isMobileSessionStatusBarCollapsed,
+          browserChatLayoutModeDefault: state.browserChatLayoutModeDefault,
+          browserChatLayoutModeByDirectory: state.browserChatLayoutModeByDirectory,
+          runtimeWidgetExpanded: state.runtimeWidgetExpanded,
+          runtimeWidgetAnchor: state.runtimeWidgetAnchor,
+          runtimeWidgetDismissedAt: state.runtimeWidgetDismissedAt,
           shortcutOverrides: state.shortcutOverrides,
         })
       }

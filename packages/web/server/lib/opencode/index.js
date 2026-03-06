@@ -52,7 +52,7 @@ export {
   getProviderAuth,
   listProviderAuths,
   AUTH_FILE,
-  OPENCODE_DATA_DIR,
+  KRONOSCODE_DATA_DIR,
 } from './auth.js';
 
 export { createUiAuth } from './ui-auth.js';

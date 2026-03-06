@@ -3,10 +3,11 @@ import { RiFileCopyLine, RiCheckLine, RiExternalLinkLine } from '@remixicon/reac
 import { isDesktopShell, isTauriShell } from '@/lib/desktop';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { OpenChamberLogo } from '@/components/ui/OpenChamberLogo';
 import { updateDesktopSettings } from '@/lib/persistence';
 import { copyTextToClipboard } from '@/lib/clipboard';
 
-const INSTALL_COMMAND = 'curl -fsSL https://opencode.ai/install | bash';
+const INSTALL_COMMAND = 'curl -fsSL https://kronoscode.ai/install | bash';
 const POLL_INTERVAL_MS = 3000;
 
 type OnboardingScreenProps = {
@@ -19,7 +20,7 @@ function BashCommand({ onCopy }: { onCopy: () => void }) {
       <code>
         <span style={{ color: 'var(--syntax-keyword)' }}>curl</span>
         <span className="text-muted-foreground"> -fsSL </span>
-        <span style={{ color: 'var(--syntax-string)' }}>https://opencode.ai/install</span>
+        <span style={{ color: 'var(--syntax-string)' }}>https://kronoscode.ai/install</span>
         <span className="text-muted-foreground"> | </span>
         <span style={{ color: 'var(--syntax-keyword)' }}>bash</span>
       </code>
@@ -41,7 +42,7 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
   const [showHint, setShowHint] = React.useState(false);
   const [isDesktopApp, setIsDesktopApp] = React.useState(false);
   const [isRetrying, setIsRetrying] = React.useState(false);
-  const [opencodeBinary, setOpencodeBinary] = React.useState('');
+  const [kronoscodeBinary, setOpencodeBinary] = React.useState('');
 
   React.useEffect(() => {
     const timer = setTimeout(() => setShowHint(true), HINT_DELAY_MS);
@@ -58,9 +59,9 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
       try {
         const response = await fetch('/api/config/settings', { method: 'GET', headers: { Accept: 'application/json' } });
         if (!response.ok) return;
-        const data = (await response.json().catch(() => null)) as null | { opencodeBinary?: unknown };
+        const data = (await response.json().catch(() => null)) as null | { kronoscodeBinary?: unknown };
         if (!data || cancelled) return;
-        const value = typeof data.opencodeBinary === 'string' ? data.opencodeBinary.trim() : '';
+        const value = typeof data.kronoscodeBinary === 'string' ? data.kronoscodeBinary.trim() : '';
         if (value) {
           setOpencodeBinary(value);
         }
@@ -94,7 +95,7 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
       const response = await fetch('/health');
       if (!response.ok) return false;
       const data = await response.json();
-      return data.openCodeRunning === true || data.isOpenCodeReady === true;
+      return data.openCodeRunning === true || data.isKronosCodeReady === true;
     } catch {
       return false;
     }
@@ -124,7 +125,7 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
 
     try {
       const selected = await tauri.dialog.open({
-        title: 'Select opencode binary',
+        title: 'Select kronoscode binary',
         multiple: false,
         directory: false,
       });
@@ -139,12 +140,12 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
   const handleApplyPath = React.useCallback(async () => {
     setIsRetrying(true);
     try {
-      await updateDesktopSettings({ opencodeBinary: opencodeBinary.trim() });
+      await updateDesktopSettings({ kronoscodeBinary: kronoscodeBinary.trim() });
       await fetch('/api/config/reload', { method: 'POST' });
     } finally {
       setTimeout(() => setIsRetrying(false), 1000);
     }
-  }, [opencodeBinary]);
+  }, [kronoscodeBinary]);
 
   const handleCopy = React.useCallback(async () => {
     const result = await copyTextToClipboard(INSTALL_COMMAND);
@@ -177,17 +178,20 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
     >
       <div className="w-full space-y-4 text-center">
         <div className="space-y-4">
+          <div className="flex justify-center">
+            <OpenChamberLogo width={96} height={96} />
+          </div>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Welcome to OpenChamber
+            Welcome to KronosChamber
           </h1>
           <p className="text-muted-foreground">
             <a
-              href="https://opencode.ai"
+              href="https://kronoscode.ai"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline inline-flex items-center gap-1"
             >
-              OpenCode CLI
+              KronosCode CLI
               <RiExternalLinkLine className="h-4 w-4" />
             </a>
             {' '}is required to continue.
@@ -208,7 +212,7 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
         </div>
 
         <a
-          href="https://opencode.ai/docs"
+          href="https://kronoscode.ai/docs"
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1 justify-center"
@@ -218,7 +222,7 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
         </a>
 
         <p className="text-sm text-muted-foreground animate-pulse">
-          Waiting for OpenCode installation...
+          Waiting for KronosCode installation...
         </p>
 
         <div className="flex justify-center">
@@ -234,12 +238,12 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
 
         <div className="mx-auto w-full max-w-xl pt-4">
           <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Already installed? Set the OpenCode CLI path:</div>
+            <div className="text-sm text-muted-foreground">Already installed? Set the KronosCode CLI path:</div>
             <div className="flex gap-2">
               <Input
-                value={opencodeBinary}
+                value={kronoscodeBinary}
                 onChange={(e) => setOpencodeBinary(e.target.value)}
-                placeholder="/Users/you/.bun/bin/opencode"
+                placeholder="/Users/you/.bun/bin/kronoscode"
                 disabled={isRetrying}
                 className="flex-1 font-mono text-xs"
               />
@@ -260,7 +264,7 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
               </Button>
             </div>
             <div className="text-xs text-muted-foreground/70">
-              Saves to <code className="text-foreground/70">~/.config/openchamber/settings.json</code> and reloads OpenCode configuration.
+              Saves to <code className="text-foreground/70">~/.config/openchamber/settings.json</code> and reloads KronosCode configuration.
             </div>
           </div>
         </div>
@@ -269,10 +273,10 @@ export function OnboardingScreen({ onCliAvailable }: OnboardingScreenProps) {
       {showHint && (
         <div className="absolute bottom-8 left-0 right-0 text-center space-y-1">
           <p className="text-sm text-muted-foreground/70">
-            Already installed? Make sure <code className="text-foreground/70">opencode</code> is in your PATH
+            Already installed? Make sure <code className="text-foreground/70">kronoscode</code> is in your PATH
           </p>
           <p className="text-sm text-muted-foreground/70">
-            or set <code className="text-foreground/70">OPENCODE_BINARY</code> environment variable.
+            or set <code className="text-foreground/70">KRONOSCODE_BINARY</code> environment variable.
           </p>
           <p className="text-sm text-muted-foreground/70">
             If you see <code className="text-foreground/70">env: node: No such file or directory</code> or <code className="text-foreground/70">env: bun: No such file or directory</code>, install that runtime or ensure it is on PATH.

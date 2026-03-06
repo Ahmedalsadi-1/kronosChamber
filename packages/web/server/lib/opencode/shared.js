@@ -6,13 +6,13 @@ import { parse as parseJsonc } from 'jsonc-parser';
 
 // ============== PATH CONSTANTS ==============
 
-const OPENCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'opencode');
-const AGENT_DIR = path.join(OPENCODE_CONFIG_DIR, 'agents');
-const COMMAND_DIR = path.join(OPENCODE_CONFIG_DIR, 'commands');
-const SKILL_DIR = path.join(OPENCODE_CONFIG_DIR, 'skills');
-const CONFIG_FILE = path.join(OPENCODE_CONFIG_DIR, 'opencode.json');
-const CUSTOM_CONFIG_FILE = process.env.OPENCODE_CONFIG
-  ? path.resolve(process.env.OPENCODE_CONFIG)
+const KRONOSCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'kronoscode');
+const AGENT_DIR = path.join(KRONOSCODE_CONFIG_DIR, 'agents');
+const COMMAND_DIR = path.join(KRONOSCODE_CONFIG_DIR, 'commands');
+const SKILL_DIR = path.join(KRONOSCODE_CONFIG_DIR, 'skills');
+const CONFIG_FILE = path.join(KRONOSCODE_CONFIG_DIR, 'kronoscode.json');
+const CUSTOM_CONFIG_FILE = process.env.KRONOSCODE_CONFIG
+  ? path.resolve(process.env.KRONOSCODE_CONFIG)
   : null;
 const PROMPT_FILE_PATTERN = /^\{file:(.+)\}$/i;
 
@@ -36,8 +36,8 @@ const SKILL_SCOPE = {
 // ============== DIRECTORY OPERATIONS ==============
 
 function ensureDirs() {
-  if (!fs.existsSync(OPENCODE_CONFIG_DIR)) {
-    fs.mkdirSync(OPENCODE_CONFIG_DIR, { recursive: true });
+  if (!fs.existsSync(KRONOSCODE_CONFIG_DIR)) {
+    fs.mkdirSync(KRONOSCODE_CONFIG_DIR, { recursive: true });
   }
   if (!fs.existsSync(AGENT_DIR)) {
     fs.mkdirSync(AGENT_DIR, { recursive: true });
@@ -92,10 +92,10 @@ function writeMdFile(filePath, frontmatter, body) {
 function getProjectConfigCandidates(workingDirectory) {
   if (!workingDirectory) return [];
   return [
-    path.join(workingDirectory, 'opencode.json'),
-    path.join(workingDirectory, 'opencode.jsonc'),
-    path.join(workingDirectory, '.opencode', 'opencode.json'),
-    path.join(workingDirectory, '.opencode', 'opencode.jsonc'),
+    path.join(workingDirectory, 'kronoscode.json'),
+    path.join(workingDirectory, 'kronoscode.jsonc'),
+    path.join(workingDirectory, '.kronoscode', 'kronoscode.json'),
+    path.join(workingDirectory, '.kronoscode', 'kronoscode.jsonc'),
   ];
 }
 
@@ -134,7 +134,7 @@ function readConfigFile(filePath) {
     return parseJsonc(normalized, [], { allowTrailingComma: true });
   } catch (error) {
     console.error(`Failed to read config file: ${filePath}`, error);
-    throw new Error('Failed to read OpenCode configuration');
+    throw new Error('Failed to read KronosCode configuration');
   }
 }
 
@@ -208,7 +208,7 @@ function writeConfig(config, filePath = CONFIG_FILE) {
     console.log(`Successfully wrote config file: ${filePath}`);
   } catch (error) {
     console.error(`Failed to write config file: ${filePath}`, error);
-    throw new Error('Failed to write OpenCode configuration');
+    throw new Error('Failed to write KronosCode configuration');
   }
 }
 
@@ -306,9 +306,9 @@ function resolvePromptFilePath(reference) {
 
   if (target.startsWith('./')) {
     target = target.slice(2);
-    target = path.join(OPENCODE_CONFIG_DIR, target);
+    target = path.join(KRONOSCODE_CONFIG_DIR, target);
   } else if (!path.isAbsolute(target)) {
-    target = path.join(OPENCODE_CONFIG_DIR, target);
+    target = path.join(KRONOSCODE_CONFIG_DIR, target);
   }
 
   return target;
@@ -389,19 +389,19 @@ function resolveSkillSearchDirectories(workingDirectory) {
     }
   };
 
-  pushDir(OPENCODE_CONFIG_DIR);
+  pushDir(KRONOSCODE_CONFIG_DIR);
 
   if (workingDirectory) {
     const worktreeRoot = findWorktreeRoot(workingDirectory) || path.resolve(workingDirectory);
     const projectDirs = getAncestors(workingDirectory, worktreeRoot)
-      .map((dir) => path.join(dir, '.opencode'));
+      .map((dir) => path.join(dir, '.kronoscode'));
     projectDirs.forEach(pushDir);
   }
 
-  pushDir(path.join(os.homedir(), '.opencode'));
+  pushDir(path.join(os.homedir(), '.kronoscode'));
 
-  const customConfigDir = process.env.OPENCODE_CONFIG_DIR
-    ? path.resolve(process.env.OPENCODE_CONFIG_DIR)
+  const customConfigDir = process.env.KRONOSCODE_CONFIG_DIR
+    ? path.resolve(process.env.KRONOSCODE_CONFIG_DIR)
     : null;
   pushDir(customConfigDir);
 
@@ -474,7 +474,7 @@ function deleteSkillSupportingFile(skillDir, relativePath) {
 }
 
 export {
-  OPENCODE_CONFIG_DIR,
+  KRONOSCODE_CONFIG_DIR,
   AGENT_DIR,
   COMMAND_DIR,
   SKILL_DIR,

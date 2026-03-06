@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSessionStore } from '@/stores/useSessionStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/opencode/client';
 
 interface SessionState {
   status: 'idle' | 'busy' | 'retry';
@@ -82,7 +82,7 @@ export function useServerSessionStatus() {
           }
           return (await r.json()) as ServerSnapshotResponse;
         }),
-        opencodeClient.getGlobalSessionStatus(),
+        kronoscodeClient.getGlobalSessionStatus(),
       ]);
 
       const snapshotData: ServerSnapshotResponse | null =
@@ -125,9 +125,9 @@ export function useServerSessionStatus() {
         }
       }
 
-      // Overlay OpenCode's own session status endpoint.
+      // Overlay KronosCode's own session status endpoint.
       // This is the source-of-truth for retry message payload and works even when
-      // OpenChamber server-side tracking misses transient updates.
+      // KronosChamber server-side tracking misses transient updates.
       for (const [sessionId, upstream] of Object.entries(upstreamStatuses)) {
         const existing = (newStatuses ?? currentStatuses).get(sessionId);
         const hasChanged =

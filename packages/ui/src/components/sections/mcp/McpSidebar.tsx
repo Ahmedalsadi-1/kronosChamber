@@ -222,7 +222,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
             <DialogTitle>Delete MCP Server</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete "{deleteTarget?.name}"? This will remove it from{' '}
-              <code className="text-foreground">opencode.json</code>.
+              <code className="text-foreground">kronoscode.json</code>.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

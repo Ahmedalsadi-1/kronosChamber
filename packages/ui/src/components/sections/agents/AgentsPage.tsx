@@ -8,7 +8,7 @@ import { useAgentsStore, type AgentConfig, type AgentScope } from '@/stores/useA
 import { useConfigStore } from '@/stores/useConfigStore';
 import { usePermissionStore } from '@/stores/permissionStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { RiAddLine, RiAiAgentFill, RiAiAgentLine, RiInformationLine, RiRobot2Line, RiRobotLine, RiSaveLine, RiSubtractLine, RiUser3Line, RiFolderLine } from '@remixicon/react';
 import { cn } from '@/lib/utils';
 import { ModelSelector } from './ModelSelector';
@@ -223,12 +223,12 @@ export const AgentsPage: React.FC = () => {
     let cancelled = false;
 
     const fetchToolIds = async () => {
-      const ids = await opencodeClient.listToolIds({ directory: currentDirectory });
+      const ids = await kronoscodeClient.listToolIds({ directory: currentDirectory });
       if (cancelled) {
         return;
       }
 
-      // OpenCode permissions are keyed by tool name, but some tools are grouped
+      // KronosCode permissions are keyed by tool name, but some tools are grouped
       // under a single permission key. E.g. `edit` covers `write`, `patch`, and `multiedit`.
       const editCoveredToolIds = new Set(['write', 'patch', 'multiedit']);
 
@@ -894,7 +894,7 @@ export const AgentsPage: React.FC = () => {
         <div className="space-y-1">
           <h2 className="typography-h2 font-semibold text-foreground">Tool Access</h2>
           <p className="typography-meta text-muted-foreground/80">
-            OpenCode v1.1.1+ configures tool access via the permissions below.
+            KronosCode v1.1.1+ configures tool access via the permissions below.
           </p>
         </div>
       </div>

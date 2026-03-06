@@ -1,5 +1,5 @@
 import React from 'react';
-import { OpenChamberVisualSettings } from './OpenChamberVisualSettings';
+import { KronosChamberVisualSettings } from './KronosChamberVisualSettings';
 import { AboutSettings } from './AboutSettings';
 import { SessionRetentionSettings } from './SessionRetentionSettings';
 import { MemoryLimitsSettings } from './MemoryLimitsSettings';
@@ -9,19 +9,21 @@ import { WorktreeSectionContent } from './WorktreeSectionContent';
 import { NotificationSettings } from './NotificationSettings';
 import { GitHubSettings } from './GitHubSettings';
 import { VoiceSettings } from './VoiceSettings';
-import { OpenCodeCliSettings } from './OpenCodeCliSettings';
+import { KronosCodeCliSettings } from './KronosCodeCliSettings';
 import { KeyboardShortcutsSettings } from './KeyboardShortcutsSettings';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { useDeviceInfo } from '@/lib/device';
 import { isVSCodeRuntime, isWebRuntime } from '@/lib/desktop';
-import type { OpenChamberSection } from './OpenChamberSidebar';
+import type { KronosChamberSection } from './KronosChamberSidebar';
+import { DesktopControlSettings } from '@/components/sections/desktop-control/DesktopControlSettings';
+import { VmSpawner } from '@/components/sections/desktop-control/VmSpawner';
 
-interface OpenChamberPageProps {
+interface KronosChamberPageProps {
     /** Which section to display. If undefined, shows all sections (mobile/legacy behavior) */
-    section?: OpenChamberSection;
+    section?: KronosChamberSection;
 }
 
-export const OpenChamberPage: React.FC<OpenChamberPageProps> = ({ section }) => {
+export const KronosChamberPage: React.FC<KronosChamberPageProps> = ({ section }) => {
     const { isMobile } = useDeviceInfo();
     const showAbout = isMobile && isWebRuntime();
     const isVSCode = isVSCodeRuntime();
@@ -35,13 +37,13 @@ export const OpenChamberPage: React.FC<OpenChamberPageProps> = ({ section }) => 
                 className="w-full"
             >
                 <div className="openchamber-page-body mx-auto max-w-3xl space-y-3 p-3 sm:space-y-6 sm:p-6">
-                    <OpenChamberVisualSettings />
+                    <KronosChamberVisualSettings />
                     <div className="border-t border-border/40 pt-6">
                         <DefaultsSettings />
                     </div>
                     {!isVSCode && (
                         <div className="border-t border-border/40 pt-6">
-                            <OpenCodeCliSettings />
+                            <KronosCodeCliSettings />
                         </div>
                     )}
                     <div className="border-t border-border/40 pt-6">
@@ -76,6 +78,8 @@ export const OpenChamberPage: React.FC<OpenChamberPageProps> = ({ section }) => 
                 return <NotificationSectionContent />;
             case 'voice':
                 return <VoiceSectionContent />;
+            case 'desktop':
+                return <DesktopSectionContent />;
             default:
                 return null;
         }
@@ -100,12 +104,12 @@ const ShortcutsSectionContent: React.FC = () => {
 
 // Visual section: Theme Mode, Font Size, Spacing, Corner Radius, Input Bar Offset (mobile)
 const VisualSectionContent: React.FC = () => {
-    return <OpenChamberVisualSettings visibleSettings={['theme', 'fontSize', 'terminalFontSize', 'spacing', 'cornerRadius', 'inputBarOffset', 'terminalQuickKeys']} />;
+    return <KronosChamberVisualSettings visibleSettings={['theme', 'fontSize', 'terminalFontSize', 'spacing', 'cornerRadius', 'inputBarOffset', 'terminalQuickKeys']} />;
 };
 
 // Chat section: Default Tool Output, Diff layout, Show reasoning traces, Queue mode, Persist draft
 const ChatSectionContent: React.FC = () => {
-    return <OpenChamberVisualSettings visibleSettings={['toolOutput', 'diffLayout', 'dotfiles', 'reasoning', 'textJustificationActivity', 'queueMode', 'persistDraft']} />;
+    return <KronosChamberVisualSettings visibleSettings={['toolOutput', 'diffLayout', 'dotfiles', 'reasoning', 'textJustificationActivity', 'queueMode', 'persistDraft']} />;
 };
 
 // Sessions section: Default model & agent, Session retention, Memory limits
@@ -116,7 +120,7 @@ const SessionsSectionContent: React.FC = () => {
             <DefaultsSettings />
             {!isVSCode && (
                 <div className="border-t border-border/40 pt-6">
-                    <OpenCodeCliSettings />
+                    <KronosCodeCliSettings />
                 </div>
             )}
             <div className="border-t border-border/40 pt-6">
@@ -161,9 +165,22 @@ const NotificationSectionContent: React.FC = () => {
 };
 
 // Voice section: Language selection and continuous mode
+// Voice section: Language selection and continuous mode
 const VoiceSectionContent: React.FC = () => {
     if (isVSCodeRuntime()) {
         return null;
     }
     return <VoiceSettings />;
+};
+
+// Desktop section: MCP servers and VM spawning
+const DesktopSectionContent: React.FC = () => {
+    return (
+        <div className="space-y-6">
+            <DesktopControlSettings />
+            <div className="border-t border-border/40 pt-6">
+                <VmSpawner />
+            </div>
+        </div>
+    );
 };

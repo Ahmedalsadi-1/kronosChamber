@@ -1,17 +1,17 @@
 
 import React from 'react';
 import { RuntimeAPIContext } from '@/contexts/runtimeAPIContext';
-import { RiAiAgentLine, RiArrowDownSLine, RiArrowRightSLine, RiBookLine, RiExternalLinkLine, RiFileEditLine, RiFileList2Line, RiFileSearchLine, RiFileTextLine, RiFolder6Line, RiGitBranchLine, RiGlobalLine, RiListCheck3, RiMenuSearchLine, RiPencilLine, RiSurveyLine, RiTaskLine, RiTerminalBoxLine, RiToolsLine } from '@remixicon/react';
+import { RiAiAgentLine, RiArrowDownSLine, RiArrowRightSLine, RiBookLine, RiExternalLinkLine, RiFileEditLine, RiFileList2Line, RiFileSearchLine, RiFileTextLine, RiFolder6Line, RiGitBranchLine, RiGlobalLine, RiListCheck3, RiMenuSearchLine, RiPencilLine, RiSurveyLine, RiTaskLine, RiTerminalBoxLine, RiToolsLine, RiWindow2Line } from '@remixicon/react';
 import { cn } from '@/lib/utils';
 import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
 import { getToolMetadata, getLanguageFromExtension, isImageFile, getImageMimeType } from '@/lib/toolHelpers';
-import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from '@opencode-ai/sdk/v2';
+import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from '@kronoscode-ai/sdk/v2';
 import { toolDisplayStyles } from '@/lib/typography';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useUIStore } from '@/stores/useUIStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import type { ContentChangeReason } from '@/hooks/useChatScrollManager';
 
@@ -44,8 +44,12 @@ interface ToolPartProps {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const getToolIcon = (toolName: string) => {
-    const iconClass = 'h-3.5 w-3.5 flex-shrink-0';
-    const tool = toolName.toLowerCase();
+  const iconClass = 'h-3.5 w-3.5 flex-shrink-0';
+  const tool = toolName.toLowerCase();
+
+  if (tool.startsWith('browser_') || tool.includes('__browser_')) {
+    return <RiWindow2Line className={iconClass} />;
+  }
 
     if (tool === 'edit' || tool === 'multiedit' || tool === 'apply_patch' || tool === 'str_replace' || tool === 'str_replace_based_edit_tool') {
         return <RiPencilLine className={iconClass} />;
@@ -184,11 +188,64 @@ const parseQuestionOutput = (output: string): Array<{ question: string; answer: 
 };
 
 const getToolDescription = (part: ToolPartType, state: ToolStateUnion, isMobile: boolean, currentDirectory: string): string => {
-    const stateWithData = state as ToolStateWithMetadata;
-    const metadata = stateWithData.metadata;
-    const input = stateWithData.input;
+  const stateWithData = state as ToolStateWithMetadata;
+  const metadata = stateWithData.metadata;
+  const input = stateWithData.input;
+  const normalizedTool = part.tool.toLowerCase();
 
-    if (part.tool === 'apply_patch') {
+  if (normalizedTool.startsWith('browser_') || normalizedTool.includes('__browser_')) {
+    if (part.tool.endsWith('browser_new_page') && typeof input?.url === 'string') {
+      return input.url;
+    }
+
+    if (part.tool.endsWith('browser_navigate')) {
+      const navType = typeof input?.type === 'string' ? input.type : '';
+      if (navType === 'back' || navType === 'forward' || navType === 'reload') {
+        return navType;
+      }
+      if (typeof input?.url === 'string') {
+        return input.url;
+      }
+      return 'navigate';
+    }
+
+    if (
+      part.tool.endsWith('browser_click')
+      || part.tool.endsWith('browser_hover')
+      || part.tool.endsWith('browser_fill')
+      || part.tool.endsWith('browser_upload_file')
+    ) {
+      if (typeof input?.uid === 'string' && input.uid.trim().length > 0) {
+        return `@${input.uid}`;
+      }
+      if (typeof input?.selector === 'string' && input.selector.trim().length > 0) {
+        return input.selector;
+      }
+      return 'element';
+    }
+
+    if (part.tool.endsWith('browser_press_key') && typeof input?.key === 'string') {
+      return input.key;
+    }
+
+    if (part.tool.endsWith('browser_select_page') && typeof input?.pageIdx === 'number') {
+      return `page ${input.pageIdx + 1}`;
+    }
+
+    if (part.tool.endsWith('browser_close_page') && typeof input?.pageIdx === 'number') {
+      return `page ${input.pageIdx + 1}`;
+    }
+
+    if (part.tool.endsWith('browser_wait_for') && typeof input?.text === 'string') {
+      return input.text;
+    }
+
+    if (part.tool.endsWith('browser_snapshot')) {
+      return 'accessibility tree';
+    }
+  }
+
+  if (part.tool === 'apply_patch') {
         const files = Array.isArray(metadata?.files) ? metadata?.files : [];
         const firstFile = files[0] as { relativePath?: string; filePath?: string } | undefined;
         const filePath = firstFile?.relativePath || firstFile?.filePath;
@@ -1241,7 +1298,7 @@ const ToolPart: React.FC<ToolPartProps> = ({ part, isExpanded, onToggle, syntaxT
         fetchedTaskSessionsRef.current.add(taskSessionId);
         let cancelled = false;
 
-        void opencodeClient
+        void kronoscodeClient
             .getSessionMessages(taskSessionId, 500)
             .then((messages) => {
                 if (cancelled || !Array.isArray(messages)) {

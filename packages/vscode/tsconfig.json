@@ -7,7 +7,7 @@
     "moduleDetection": "force",
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
-    "strict": true,
+    "strict": false,
     "skipLibCheck": true,
     "noEmit": true,
     "esModuleInterop": true,

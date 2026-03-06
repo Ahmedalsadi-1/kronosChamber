@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { McpStatus } from '@opencode-ai/sdk/v2';
-import { opencodeClient } from '@/lib/opencode/client';
+import type { McpStatus } from '@kronoscode-ai/sdk/v2';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 
 export type McpStatusMap = Record<string, McpStatus>;
@@ -73,7 +73,7 @@ export const useMcpStore = create<McpStore>()(
       }
 
       try {
-        const api = opencodeClient.getApiClient();
+        const api = kronoscodeClient.getApiClient();
         const result = await api.mcp.status(directory ? { directory } : undefined);
         const data = (result.data ?? {}) as McpStatusMap;
 
@@ -93,14 +93,14 @@ export const useMcpStore = create<McpStore>()(
 
     connect: async (name, directory) => {
       const normalized = normalizeDirectory(directory ?? useDirectoryStore.getState().currentDirectory);
-      const api = opencodeClient.getApiClient();
+      const api = kronoscodeClient.getApiClient();
       await api.mcp.connect({ name, ...(normalized ? { directory: normalized } : {}) }, { throwOnError: true });
       await get().refresh({ directory: normalized, silent: true });
     },
 
     disconnect: async (name, directory) => {
       const normalized = normalizeDirectory(directory ?? useDirectoryStore.getState().currentDirectory);
-      const api = opencodeClient.getApiClient();
+      const api = kronoscodeClient.getApiClient();
       await api.mcp.disconnect({ name, ...(normalized ? { directory: normalized } : {}) }, { throwOnError: true });
       await get().refresh({ directory: normalized, silent: true });
     },

@@ -1,6 +1,6 @@
 import type { SkillScope, SkillSource } from '@/stores/useSkillsStore';
 
-export type SkillLocationValue = 'user-opencode' | 'project-opencode' | 'user-agents' | 'project-agents';
+export type SkillLocationValue = 'user-kronoscode' | 'project-kronoscode' | 'user-agents' | 'project-agents';
 
 export const SKILL_LOCATION_OPTIONS: Array<{
   value: SkillLocationValue;
@@ -10,18 +10,18 @@ export const SKILL_LOCATION_OPTIONS: Array<{
   description: string;
 }> = [
   {
-    value: 'user-opencode',
+    value: 'user-kronoscode',
     scope: 'user',
-    source: 'opencode',
-    label: 'User / OpenCode',
-    description: 'Global OpenCode config location',
+    source: 'kronoscode',
+    label: 'User / KronosCode',
+    description: 'Global KronosCode config location',
   },
   {
-    value: 'project-opencode',
+    value: 'project-kronoscode',
     scope: 'project',
-    source: 'opencode',
-    label: 'Project / OpenCode',
-    description: 'Current project .opencode location',
+    source: 'kronoscode',
+    label: 'Project / KronosCode',
+    description: 'Current project .kronoscode location',
   },
   {
     value: 'user-agents',
@@ -41,15 +41,15 @@ export const SKILL_LOCATION_OPTIONS: Array<{
 
 export function locationValueFrom(scope: SkillScope, source: SkillSource): SkillLocationValue {
   if (scope === 'project' && source === 'agents') return 'project-agents';
-  if (scope === 'project') return 'project-opencode';
+  if (scope === 'project') return 'project-kronoscode';
   if (source === 'agents') return 'user-agents';
-  return 'user-opencode';
+  return 'user-kronoscode';
 }
 
 export function locationPartsFrom(value: SkillLocationValue): { scope: SkillScope; source: SkillSource } {
   const match = SKILL_LOCATION_OPTIONS.find((option) => option.value === value);
   if (!match) {
-    return { scope: 'user', source: 'opencode' };
+    return { scope: 'user', source: 'kronoscode' };
   }
   return { scope: match.scope, source: match.source };
 }

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { getThemeKindName } from './theme';
-import type { ConnectionStatus } from './opencode';
+import type { ConnectionStatus } from './kronoscode';
 
 export type PanelType = 'chat' | 'agentManager';
 
@@ -35,7 +35,7 @@ export function getWebviewHtml(options: WebviewHtmlOptions): string {
   // Use VS Code CSS variables for proper theme integration
   // These variables are automatically provided by VS Code to webviews
   // 
-  // Logo geometry matches OpenChamberLogo.tsx:
+  // Logo geometry matches KronosChamberLogo.tsx:
   // edge=48, cos30=0.866, sin30=0.5, centerY=50
   // top=(50, 2), left=(8.432, 26), right=(91.568, 26), center=(50, 50)
   // bottomLeft=(8.432, 74), bottomRight=(91.568, 74), bottom=(50, 98)
@@ -87,7 +87,7 @@ export function getWebviewHtml(options: WebviewHtmlOptions): string {
       fill: var(--vscode-foreground);
       opacity: 0.4;
     }
-    /* Animation on inner logo only, like OpenChamberLogo.tsx */
+    /* Animation on inner logo only, like KronosChamberLogo.tsx */
     #initial-loading .logo-inner {
       animation: logoPulse 3s ease-in-out infinite;
     }
@@ -107,10 +107,10 @@ export function getWebviewHtml(options: WebviewHtmlOptions): string {
       50% { opacity: 1; }
     }
   </style>
-  <title>OpenChamber</title>
+  <title>KronosChamber</title>
 </head>
 <body>
-  <!-- Initial loading screen with simplified OpenChamber logo -->
+  <!-- Initial loading screen with simplified KronosChamber logo -->
   <div id="initial-loading">
     <svg class="logo" width="70" height="70" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
       <!-- Left face -->
@@ -120,16 +120,16 @@ export function getWebviewHtml(options: WebviewHtmlOptions): string {
       <!-- Top face (no fill, stroke only) -->
       <path class="logo-stroke" d="M50 2 L8.432 26 L50 50 L91.568 26 Z" fill="none" stroke-width="2" stroke-linejoin="round"/>
       
-      <!-- OpenCode logo on top face with pulse animation -->
+      <!-- KronosCode logo on top face with pulse animation -->
       <g class="logo-inner" transform="matrix(0.866, 0.5, -0.866, 0.5, 50, 26) scale(0.75)">
         <path class="logo-fill-solid" fill-rule="evenodd" clip-rule="evenodd" d="M-16 -20 L16 -20 L16 20 L-16 20 Z M-8 -12 L-8 12 L8 12 L8 -12 Z"/>
         <path class="logo-fill-dim" d="M-8 -4 L8 -4 L8 12 L-8 12 Z"/>
       </g>
     </svg>
     <div class="status-text" id="loading-status">
-      ${initialStatus === 'connecting' ? 'Starting OpenCode API…' : initialStatus === 'connected' ? 'Initializing…' : 'Connecting…'}
+      ${initialStatus === 'connecting' ? 'Starting KronosCode API…' : initialStatus === 'connected' ? 'Initializing…' : 'Connecting…'}
     </div>
-    ${!cliAvailable ? `<div class="error-text">OpenCode CLI not found. Please install it first.</div>` : ''}
+    ${!cliAvailable ? `<div class="error-text">KronosCode CLI not found. Please install it first.</div>` : ''}
   </div>
   
   <div id="root"></div>
@@ -146,7 +146,7 @@ export function getWebviewHtml(options: WebviewHtmlOptions): string {
       viewMode: "${viewMode}",
       initialSessionId: ${initialSessionId ? `"${initialSessionId.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : 'null'},
     };
-    window.__OPENCHAMBER_HOME__ = "${workspaceFolder.replace(/\\/g, '\\\\')}";
+    window.__KRONOSCHAMBER_HOME__ = "${workspaceFolder.replace(/\\/g, '\\\\')}";
     
     // Handle connection status updates to update loading screen
     window.addEventListener('message', function(event) {
@@ -155,7 +155,7 @@ export function getWebviewHtml(options: WebviewHtmlOptions): string {
         var statusEl = document.getElementById('loading-status');
         if (statusEl) {
           if (msg.status === 'connecting') {
-            statusEl.textContent = 'Starting OpenCode API…';
+            statusEl.textContent = 'Starting KronosCode API…';
             statusEl.classList.remove('error-text');
           } else if (msg.status === 'connected') {
             statusEl.textContent = 'Connected!';

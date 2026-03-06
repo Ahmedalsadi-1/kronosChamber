@@ -1,0 +1,20 @@
+{
+  "name": "openchamber-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "compositions": "remotion compositions src/index.ts",
+    "render": "remotion render src/index.ts KronosChamberPromo out/openchamber-promo.mp4 --overwrite"
+  },
+  "dependencies": {
+    "@remotion/media": "^4.0.431",
+    "@remotion/transitions": "^4.0.431",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.431"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.431"
+  }
+}

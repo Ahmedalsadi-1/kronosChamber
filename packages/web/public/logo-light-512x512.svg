@@ -1,16 +1,17 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- OpenChamber logo - simplified, no background (for light backgrounds) -->
-  <g transform="translate(256, 256) scale(4)">
-    <!-- Left face - simplified, no grid cells -->
-    <path d="M0 0 L-41.568 -24 L-41.568 24 L0 48 Z" fill="black" fill-opacity="0.2" stroke="black" stroke-width="3" stroke-linejoin="round"/>
-    <!-- Right face - simplified, no grid cells -->
-    <path d="M0 0 L41.568 -24 L41.568 24 L0 48 Z" fill="black" fill-opacity="0.35" stroke="black" stroke-width="3" stroke-linejoin="round"/>
-    <!-- Top face - open -->
-    <path d="M0 -48 L-41.568 -24 L0 0 L41.568 -24 Z" fill="none" stroke="black" stroke-width="3" stroke-linejoin="round"/>
-    <!-- OpenCode logo on top face -->
-    <g transform="matrix(0.866, 0.5, -0.866, 0.5, 0, -24) scale(0.75)">
-      <path fill-rule="evenodd" clip-rule="evenodd" d="M-16 -20 L16 -20 L16 20 L-16 20 Z M-8 -12 L-8 12 L8 12 L8 -12 Z" fill="black"/>
-      <path d="M-8 -4 L8 -4 L8 12 L-8 12 Z" fill="black" fill-opacity="0.4"/>
-    </g>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="KronosChamber mascot">
+  <rect width="1024" height="1024" fill="#000000"/>
+  <g fill="#F2F2F2" stroke="#F2F2F2" stroke-width="14" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M214 360 L470 204 L708 286 L744 324 L744 624 L538 764 L270 730 L214 674 Z"/>
+    <path d="M418 294 L430 146 L518 46 L590 126 L596 318 Z" fill="none"/>
+    <path d="M602 330 L666 186 L742 126 L794 210 L780 398 Z" fill="none"/>
   </g>
+  <g fill="none" stroke="#000" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M300 498 L352 548"/>
+    <path d="M352 498 L300 548"/>
+    <circle cx="504" cy="542" r="34" fill="#000" stroke="none"/>
+    <path d="M360 606 C382 640 426 656 462 638"/>
+    <path d="M470 600 C490 626 528 632 556 610"/>
+    <path d="M432 562 L468 590 L432 616" fill="#000" stroke="none"/>
+  </g>
+  <path d="M914 902 L946 910 L968 880" stroke="#D9D9D9" stroke-width="12" stroke-linecap="round" fill="none"/>
 </svg>

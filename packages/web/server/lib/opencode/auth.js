@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const OPENCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'opencode');
-const AUTH_FILE = path.join(OPENCODE_DATA_DIR, 'auth.json');
+const KRONOSCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'kronoscode');
+const AUTH_FILE = path.join(KRONOSCODE_DATA_DIR, 'auth.json');
 
 function readAuthFile() {
   if (!fs.existsSync(AUTH_FILE)) {
@@ -18,14 +18,14 @@ function readAuthFile() {
     return JSON.parse(trimmed);
   } catch (error) {
     console.error('Failed to read auth file:', error);
-    throw new Error('Failed to read OpenCode auth configuration');
+    throw new Error('Failed to read KronosCode auth configuration');
   }
 }
 
 function writeAuthFile(auth) {
   try {
-    if (!fs.existsSync(OPENCODE_DATA_DIR)) {
-      fs.mkdirSync(OPENCODE_DATA_DIR, { recursive: true });
+    if (!fs.existsSync(KRONOSCODE_DATA_DIR)) {
+      fs.mkdirSync(KRONOSCODE_DATA_DIR, { recursive: true });
     }
 
     if (fs.existsSync(AUTH_FILE)) {
@@ -38,7 +38,7 @@ function writeAuthFile(auth) {
     console.log('Successfully wrote auth file');
   } catch (error) {
     console.error('Failed to write auth file:', error);
-    throw new Error('Failed to write OpenCode auth configuration');
+    throw new Error('Failed to write KronosCode auth configuration');
   }
 }
 
@@ -77,5 +77,5 @@ export {
   getProviderAuth,
   listProviderAuths,
   AUTH_FILE,
-  OPENCODE_DATA_DIR
+  KRONOSCODE_DATA_DIR
 };

@@ -33,7 +33,7 @@ import type {
   GitRemote,
   GitRebaseResult,
   GitMergeResult,
-} from '@openchamber/ui/lib/api/types';
+} from '@kronoscode-ai/ui/lib/api/types';
 
 export const createVSCodeGitAPI = (): GitAPI => ({
   checkIsGitRepository: async (directory: string): Promise<boolean> => {

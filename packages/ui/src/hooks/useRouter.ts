@@ -5,6 +5,7 @@ import { parseRoute, updateBrowserURL, hasRouteParams } from '@/lib/router';
 import type { RouteState, AppRouteState } from '@/lib/router';
 import type { SidebarSection } from '@/constants/sidebar';
 import type { MainTab } from '@/stores/useUIStore';
+import { isDesktopShell } from '@/lib/desktop';
 
 /**
  * Check if running in VS Code webview context.
@@ -17,8 +18,18 @@ function isVSCodeContext(): boolean {
   return win.__VSCODE_CONFIG__ !== undefined;
 }
 
+function isDesktopRuntime(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const runtimeApis = (window as Window & {
+    __KRONOSCHAMBER_RUNTIME_APIS__?: { runtime?: { isDesktop?: boolean } };
+  }).__KRONOSCHAMBER_RUNTIME_APIS__;
+  return runtimeApis?.runtime?.isDesktop === true || isDesktopShell();
+}
+
 /**
- * Hook that provides bidirectional URL routing for OpenChamber.
+ * Hook that provides bidirectional URL routing for KronosChamber.
  *
  * On mount:
  * - Parses URL parameters and applies them to app state
@@ -79,7 +90,11 @@ export function useRouter(): void {
 
         // 3. Apply tab
         if (route.tab) {
-          setActiveMainTab(route.tab);
+          if (route.tab === 'browser' && !isDesktopRuntime()) {
+            setActiveMainTab('chat');
+          } else {
+            setActiveMainTab(route.tab);
+          }
         }
 
         // 4. Apply diff file (only if going to diff tab)
@@ -267,7 +282,11 @@ export function navigateToRoute(route: Partial<RouteState>): void {
       useUIStore.getState().setSidebarSection(route.settingsSection);
       useUIStore.getState().setSettingsDialogOpen(true);
     } else if (route.tab) {
-      useUIStore.getState().setActiveMainTab(route.tab);
+      if (route.tab === 'browser' && !isDesktopRuntime()) {
+        useUIStore.getState().setActiveMainTab('chat');
+      } else {
+        useUIStore.getState().setActiveMainTab(route.tab);
+      }
     }
     if (route.diffFile) {
       useUIStore.getState().navigateToDiff(route.diffFile);
@@ -276,6 +295,7 @@ export function navigateToRoute(route: Partial<RouteState>): void {
   }
 
   // Build URL and navigate
+  const resolvedTab = route.tab === 'browser' && !isDesktopRuntime() ? 'chat' : route.tab;
   const params = new URLSearchParams();
 
   if (route.sessionId) {
@@ -283,11 +303,11 @@ export function navigateToRoute(route: Partial<RouteState>): void {
   }
   if (route.settingsSection) {
     params.set('settings', route.settingsSection);
-  } else if (route.tab && route.tab !== 'chat') {
+  } else if (resolvedTab && resolvedTab !== 'chat') {
     if (useUIStore.getState().isSettingsDialogOpen) {
       useUIStore.getState().setSettingsDialogOpen(false);
     }
-    params.set('tab', route.tab);
+    params.set('tab', resolvedTab);
   }
   if (route.diffFile) {
     params.set('file', route.diffFile);
@@ -305,8 +325,12 @@ export function navigateToRoute(route: Partial<RouteState>): void {
   if (route.settingsSection) {
     useUIStore.getState().setSidebarSection(route.settingsSection);
     useUIStore.getState().setSettingsDialogOpen(true);
-  } else if (route.tab) {
-    useUIStore.getState().setActiveMainTab(route.tab);
+  } else if (resolvedTab) {
+    if (resolvedTab === 'browser' && !isDesktopRuntime()) {
+      useUIStore.getState().setActiveMainTab('chat');
+    } else {
+      useUIStore.getState().setActiveMainTab(resolvedTab);
+    }
   }
   if (route.diffFile) {
     useUIStore.getState().navigateToDiff(route.diffFile);
@@ -330,14 +354,19 @@ export function getShareableURL(): string {
     params.set('session', sessionState.currentSessionId);
   }
 
+  const normalizedTab =
+    uiState.activeMainTab === 'browser' && !isDesktopRuntime()
+      ? 'chat'
+      : uiState.activeMainTab;
+
   if (uiState.isSettingsDialogOpen) {
     const settingsSection = uiState.sidebarSection === 'sessions' ? 'settings' : uiState.sidebarSection;
     params.set('settings', settingsSection);
-  } else if (uiState.activeMainTab !== 'chat') {
-    params.set('tab', uiState.activeMainTab);
+  } else if (normalizedTab !== 'chat') {
+    params.set('tab', normalizedTab);
   }
 
-  if (uiState.activeMainTab === 'diff' && uiState.pendingDiffFile) {
+  if (normalizedTab === 'diff' && uiState.pendingDiffFile) {
     params.set('file', uiState.pendingDiffFile);
   }
 

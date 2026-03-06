@@ -12,7 +12,7 @@ import { RiCloseLine, RiCodeLine, RiFileImageLine, RiFileTextLine, RiFolder6Line
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn, truncatePathMiddle } from '@/lib/utils';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { useDeviceInfo } from '@/lib/device';
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
 import { useFileSearchStore } from '@/stores/useFileSearchStore';
@@ -102,7 +102,7 @@ export const ServerFilePicker: React.FC<ServerFilePickerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const entries = await opencodeClient.listLocalDirectory(dirPath, { respectGitignore: !showGitignored });
+      const entries = await kronoscodeClient.listLocalDirectory(dirPath, { respectGitignore: !showGitignored });
       const items = mapFilesystemEntries(dirPath, entries.map((entry) => ({
         name: entry.name,
         path: entry.path,
@@ -141,7 +141,7 @@ export const ServerFilePicker: React.FC<ServerFilePickerProps> = ({
     inFlightDirsRef.current.add(cacheKey);
 
     try {
-      const entries = await opencodeClient.listLocalDirectory(normalizedDir, { respectGitignore: !showGitignored });
+      const entries = await kronoscodeClient.listLocalDirectory(normalizedDir, { respectGitignore: !showGitignored });
       const items = mapFilesystemEntries(normalizedDir, entries.map((entry) => ({
         name: entry.name,
         path: entry.path,

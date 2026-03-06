@@ -1,7 +1,7 @@
 import React from 'react';
 import { RiFolderLine, RiRefreshLine } from '@remixicon/react';
 import { cn } from '@/lib/utils';
-import { opencodeClient, type FilesystemEntry } from '@/lib/opencode/client';
+import { kronoscodeClient, type FilesystemEntry } from '@/lib/kronoscode/client';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 interface DirectoryAutocompleteProps {
@@ -134,7 +134,7 @@ export const DirectoryAutocomplete = React.forwardRef<DirectoryAutocompleteHandl
     let cancelled = false;
     setLoading(true);
 
-    opencodeClient.listLocalDirectory(parentDir)
+    kronoscodeClient.listLocalDirectory(parentDir)
       .then((entries) => {
         if (cancelled) return;
         

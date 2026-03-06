@@ -5,18 +5,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useDeviceInfo } from '@/lib/device';
 import { isVSCodeRuntime, isWebRuntime } from '@/lib/desktop';
 import { AboutSettings } from './AboutSettings';
-import { reloadOpenCodeConfiguration } from '@/stores/useAgentsStore';
+import { reloadKronosCodeConfiguration } from '@/stores/useAgentsStore';
 import { cn } from '@/lib/utils';
 
-export type OpenChamberSection = 'visual' | 'chat' | 'shortcuts' | 'sessions' | 'git' | 'github' | 'notifications' | 'voice';
+export type KronosChamberSection = 'visual' | 'chat' | 'shortcuts' | 'sessions' | 'git' | 'github' | 'notifications' | 'voice' | 'desktop';
 
-interface OpenChamberSidebarProps {
-  selectedSection: OpenChamberSection;
-  onSelectSection: (section: OpenChamberSection) => void;
+interface KronosChamberSidebarProps {
+  selectedSection: KronosChamberSection;
+  onSelectSection: (section: KronosChamberSection) => void;
 }
 
 interface SectionGroup {
-  id: OpenChamberSection;
+  id: KronosChamberSection;
   label: string;
   items: string[];
   badge?: string;
@@ -24,7 +24,7 @@ interface SectionGroup {
   hideInVSCode?: boolean;
 }
 
-const OPENCHAMBER_SECTION_GROUPS: SectionGroup[] = [
+const KRONOSCHAMBER_SECTION_GROUPS: SectionGroup[] = [
   {
     id: 'visual',
     label: 'Visual',
@@ -69,9 +69,15 @@ const OPENCHAMBER_SECTION_GROUPS: SectionGroup[] = [
     badge: 'experimental',
     hideInVSCode: true,
   },
+  {
+    id: 'desktop',
+    label: 'Desktop',
+    items: ['MCP Servers', 'VM Spawner'],
+    badge: 'new',
+  },
 ];
 
-export const OpenChamberSidebar: React.FC<OpenChamberSidebarProps> = ({
+export const KronosChamberSidebar: React.FC<KronosChamberSidebarProps> = ({
   selectedSection,
   onSelectSection,
 }) => {
@@ -86,14 +92,14 @@ export const OpenChamberSidebar: React.FC<OpenChamberSidebarProps> = ({
   const handleReloadConfiguration = React.useCallback(async () => {
     setIsReloadingConfig(true);
     try {
-      await reloadOpenCodeConfiguration({ message: 'Restarting OpenCode…', mode: 'projects', scopes: ['all'] });
+      await reloadKronosCodeConfiguration({ message: 'Restarting KronosCode…', mode: 'projects', scopes: ['all'] });
     } finally {
       setIsReloadingConfig(false);
     }
   }, []);
 
   const visibleSections = React.useMemo(() => {
-    return OPENCHAMBER_SECTION_GROUPS.filter((group) => {
+    return KRONOSCHAMBER_SECTION_GROUPS.filter((group) => {
       if (group.webOnly && !isWeb) return false;
       if (group.hideInVSCode && isVSCode) return false;
       return true;
@@ -166,11 +172,11 @@ export const OpenChamberSidebar: React.FC<OpenChamberSidebarProps> = ({
                       disabled={isReloadingConfig}
                     >
                       <RiRestartLine className="h-4 w-4" />
-                      {isReloadingConfig ? 'Reloading OpenCode…' : 'Reload OpenCode'}
+                      {isReloadingConfig ? 'Reloading KronosCode…' : 'Reload KronosCode'}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Restart OpenCode and reload its configuration (agents, commands, skills, providers).
+                    Restart KronosCode and reload its configuration (agents, commands, skills, providers).
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -194,11 +200,11 @@ export const OpenChamberSidebar: React.FC<OpenChamberSidebarProps> = ({
                       disabled={isReloadingConfig}
                     >
                       <RiRestartLine className="h-4 w-4" />
-                      {isReloadingConfig ? 'Reloading OpenCode…' : 'Reload OpenCode'}
+                      {isReloadingConfig ? 'Reloading KronosCode…' : 'Reload KronosCode'}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Restart OpenCode and reload its configuration (agents, commands, skills, providers).
+                    Restart KronosCode and reload its configuration (agents, commands, skills, providers).
                   </TooltipContent>
                 </Tooltip>
               )}

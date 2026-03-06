@@ -448,7 +448,7 @@ export const NotificationSettings: React.FC = () => {
               Notify while app is focused
             </span>
             <p className="typography-micro text-muted-foreground">
-              When off, only notify when you are not looking at OpenChamber.
+              When off, only notify when you are not looking at KronosChamber.
             </p>
           </div>
           <Switch

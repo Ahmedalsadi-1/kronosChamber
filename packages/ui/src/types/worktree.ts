@@ -2,7 +2,7 @@ export interface WorktreeMetadata {
 
   /**
    * Worktree origin.
-   * - sdk: created/managed by OpenCode SDK worktrees
+   * - sdk: created/managed by KronosCode SDK worktrees
    */
   source?: 'sdk';
 

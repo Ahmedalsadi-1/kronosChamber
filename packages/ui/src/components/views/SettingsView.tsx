@@ -32,8 +32,8 @@ import { UsageSidebar } from '@/components/sections/usage/UsageSidebar';
 import { UsagePage } from '@/components/sections/usage/UsagePage';
 import { GitIdentitiesSidebar } from '@/components/sections/git-identities/GitIdentitiesSidebar';
 import { GitIdentitiesPage } from '@/components/sections/git-identities/GitIdentitiesPage';
-import { OpenChamberPage } from '@/components/sections/openchamber/OpenChamberPage';
-import { OpenChamberSidebar, type OpenChamberSection } from '@/components/sections/openchamber/OpenChamberSidebar';
+import { KronosChamberPage } from '@/components/sections/openchamber/KronosChamberPage';
+import { KronosChamberSidebar, type KronosChamberSection } from '@/components/sections/openchamber/KronosChamberSidebar';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useDeviceInfo } from '@/lib/device';
 import { isVSCodeRuntime } from '@/lib/desktop';
@@ -87,7 +87,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
   const setActiveTab = React.useCallback((tab: SidebarSection) => {
     setSidebarSection(tab);
   }, [setSidebarSection]);
-  const [selectedOpenChamberSection, setSelectedOpenChamberSection] = React.useState<OpenChamberSection>('visual');
+  const [selectedKronosChamberSection, setSelectedKronosChamberSection] = React.useState<KronosChamberSection>('visual');
   // Mobile drill-down state: show page content instead of sidebar
   const [showMobilePageContent, setShowMobilePageContent] = React.useState(false);
   const [sidebarWidth, setSidebarWidth] = React.useState(() => {
@@ -298,10 +298,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
       case 'settings':
         return (
           <div className="h-full">
-            <OpenChamberSidebar
-              selectedSection={selectedOpenChamberSection}
+            <KronosChamberSidebar
+              selectedSection={selectedKronosChamberSection}
               onSelectSection={(section) => {
-                setSelectedOpenChamberSection(section);
+                setSelectedKronosChamberSection(section);
                 handleMobileSidebarClick();
               }}
             />
@@ -345,7 +345,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
       case 'git-identities':
         return <GitIdentitiesPage />;
       case 'settings':
-        return <OpenChamberPage section={selectedOpenChamberSection} />;
+        return <KronosChamberPage section={selectedKronosChamberSection} />;
       default:
         return null;
     }

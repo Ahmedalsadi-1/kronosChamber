@@ -9,19 +9,27 @@ import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { CommandPalette } from '../ui/CommandPalette';
 import { HelpDialog } from '../ui/HelpDialog';
 import { OpenCodeStatusDialog } from '../ui/OpenCodeStatusDialog';
+import { StatusChip } from '../ui/StatusChip';
 import { SessionSidebar } from '@/components/session/SessionSidebar';
 import { SessionDialogs } from '@/components/session/SessionDialogs';
+import { RuntimeStrip } from '@/components/chat/runtime/RuntimeStrip';
+import { BrowserSelectionBubble } from '@/components/browser/BrowserSelectionBubble';
 import { DiffWorkerProvider } from '@/contexts/DiffWorkerProvider';
 import { MultiRunLauncher } from '@/components/multirun';
+import { RiCheckboxCircleFill, RiLoader4Line } from '@remixicon/react';
 
 import { useUIStore } from '@/stores/useUIStore';
 import { useUpdateStore } from '@/stores/useUpdateStore';
+import { useBootHealthStore } from '@/stores/useBootHealthStore';
+import { useAgentRuntimeStore } from '@/stores/useAgentRuntimeStore';
 import { useDeviceInfo } from '@/lib/device';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useEdgeSwipe } from '@/hooks/useEdgeSwipe';
+import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { cn } from '@/lib/utils';
+import { isDesktopShell } from '@/lib/desktop';
 
-import { ChatView, PlanView, GitView, DiffView, TerminalView, FilesView, SettingsView, SettingsWindow } from '@/components/views';
+import { ChatView, BrowserView, ZenBrowserView, PlanView, GitView, DiffView, TerminalView, FilesView, SettingsView, SettingsWindow } from '@/components/views';
 
 const normalizeDirectoryKey = (value: string): string => {
     if (!value) return '';
@@ -54,6 +62,8 @@ export const MainLayout: React.FC = () => {
         setRightSidebarOpen,
         setBottomTerminalOpen,
         activeMainTab,
+        setActiveMainTab,
+        setBrowserChatLayoutMode,
         setIsMobile,
         isSessionSwitcherOpen,
         isSettingsDialogOpen,
@@ -62,8 +72,15 @@ export const MainLayout: React.FC = () => {
         setMultiRunLauncherOpen,
         multiRunLauncherPrefillPrompt,
     } = useUIStore();
+    const eventStreamStatus = useUIStore((state) => state.eventStreamStatus);
 
     const { isMobile } = useDeviceInfo();
+    const runtimeApis = useRuntimeAPIs();
+    const bundleLoaded = useBootHealthStore((state) => state.bundleLoaded);
+    const apiConnected = useBootHealthStore((state) => state.apiConnected);
+    const sseActive = useBootHealthStore((state) => state.sseActive);
+    const setApiConnected = useBootHealthStore((state) => state.setApiConnected);
+    const setSseActive = useBootHealthStore((state) => state.setSseActive);
     const effectiveDirectory = useEffectiveDirectory() ?? '';
     const directoryKey = React.useMemo(() => normalizeDirectoryKey(effectiveDirectory), [effectiveDirectory]);
     const isContextPanelOpen = useUIStore((state) => {
@@ -74,9 +91,19 @@ export const MainLayout: React.FC = () => {
         return Boolean(panelState?.isOpen && panelState?.mode);
     });
     const setSidebarOpen = useUIStore((state) => state.setSidebarOpen);
+    const isDesktopApp = runtimeApis.runtime.isDesktop || isDesktopShell();
     const rightSidebarAutoClosedRef = React.useRef(false);
     const bottomTerminalAutoClosedRef = React.useRef(false);
     const leftSidebarAutoClosedByContextRef = React.useRef(false);
+    const startupBrowserAppliedRef = React.useRef(false);
+    const [showBootHealth, setShowBootHealth] = React.useState(true);
+    const runtimeTasksByID = useAgentRuntimeStore((state) => state.tasksByID);
+    const runtimeTaskOrder = useAgentRuntimeStore((state) => state.orderedTaskIDs);
+    const hasActiveDesktopBrowserTask = React.useMemo(() => {
+        return runtimeTaskOrder
+            .map((taskID) => runtimeTasksByID[taskID])
+            .some((task) => task && task.mode === 'desktop-browser' && (task.status === 'queued' || task.status === 'running'));
+    }, [runtimeTaskOrder, runtimeTasksByID]);
 
     useEdgeSwipe({ enabled: true });
 
@@ -95,6 +122,56 @@ export const MainLayout: React.FC = () => {
             setIsMobile(isMobile);
         }
     }, [isMobile, setIsMobile]);
+
+    React.useEffect(() => {
+        setSseActive(eventStreamStatus === 'connected');
+    }, [eventStreamStatus, setSseActive]);
+
+    React.useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        let cancelled = false;
+
+        const checkApiHealth = async () => {
+            try {
+                const response = await fetch('/health', { method: 'GET' });
+                if (!cancelled) {
+                    setApiConnected(response.ok);
+                }
+            } catch {
+                if (!cancelled) {
+                    setApiConnected(false);
+                }
+            }
+        };
+
+        void checkApiHealth();
+        const intervalId = window.setInterval(() => {
+            void checkApiHealth();
+        }, 12000);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [setApiConnected]);
+
+    React.useEffect(() => {
+        if (!(bundleLoaded && apiConnected && sseActive)) {
+            setShowBootHealth(true);
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            setShowBootHealth(false);
+        }, 3500);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [apiConnected, bundleLoaded, sseActive]);
 
     React.useEffect(() => {
         if (typeof window === 'undefined') {
@@ -138,6 +215,64 @@ export const MainLayout: React.FC = () => {
             leftSidebarAutoClosedByContextRef.current = false;
         }
     }, [isContextPanelOpen, setSidebarOpen]);
+
+    React.useEffect(() => {
+        if (!isDesktopApp && activeMainTab === 'browser') {
+            setActiveMainTab('chat');
+        }
+    }, [activeMainTab, isDesktopApp, setActiveMainTab]);
+
+    React.useEffect(() => {
+        if (!isDesktopApp || startupBrowserAppliedRef.current) {
+            return;
+        }
+        if (typeof window === 'undefined') {
+            return;
+        }
+        startupBrowserAppliedRef.current = true;
+
+        const search = new URLSearchParams(window.location.search);
+        if (search.has('tab')) {
+            return;
+        }
+
+        let cancelled = false;
+        void (async () => {
+            try {
+                const response = await fetch('/api/config/settings', {
+                    method: 'GET',
+                    headers: { Accept: 'application/json' },
+                });
+                if (!response.ok || cancelled) {
+                    return;
+                }
+                const payload = (await response.json().catch(() => null)) as null | { browserOpenAtStartup?: unknown };
+                if (cancelled || !payload || payload.browserOpenAtStartup !== true) {
+                    return;
+                }
+                if (useUIStore.getState().activeMainTab === 'chat') {
+                    setActiveMainTab('browser');
+                }
+            } catch {
+                // ignore startup preference load failures
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isDesktopApp, setActiveMainTab]);
+
+    React.useEffect(() => {
+        if (!isDesktopApp || !hasActiveDesktopBrowserTask) {
+            return;
+        }
+        setActiveMainTab('browser');
+        setBrowserChatLayoutMode('split', {
+            directory: directoryKey || null,
+            makeDefault: !directoryKey,
+        });
+    }, [directoryKey, hasActiveDesktopBrowserTask, isDesktopApp, setActiveMainTab, setBrowserChatLayoutMode]);
 
     React.useEffect(() => {
         if (typeof window === 'undefined') {
@@ -470,6 +605,8 @@ export const MainLayout: React.FC = () => {
 
     const secondaryView = React.useMemo(() => {
         switch (activeMainTab) {
+            case 'browser':
+                return isDesktopApp ? <ZenBrowserView /> : null;
             case 'plan':
                 return <PlanView />;
             case 'git':
@@ -483,15 +620,25 @@ export const MainLayout: React.FC = () => {
             default:
                 return null;
         }
-    }, [activeMainTab]);
+    }, [activeMainTab, isDesktopApp]);
 
     const isChatActive = activeMainTab === 'chat';
+    const isBrowserSplitView = !isMobile && isDesktopApp && activeMainTab === 'browser';
+
+    const layoutMode = useUIStore((state) => state.resolveBrowserChatLayoutMode(directoryKey));
+    const bootReady = bundleLoaded && apiConnected && sseActive;
+    const bootTone = bootReady ? 'success' : apiConnected ? 'info' : 'warning';
+    const bootLabel = [
+        `Bundle ${bundleLoaded ? 'ok' : '…'}`,
+        `API ${apiConnected ? 'ok' : '…'}`,
+        `SSE ${sseActive ? 'ok' : '…'}`,
+    ].join(' • ');
 
     return (
         <DiffWorkerProvider>
             <div
                 className={cn(
-                    'main-content-safe-area h-[100dvh]',
+                    'main-content-safe-area h-[100dvh] relative',
                     isMobile ? 'flex flex-col' : 'flex',
                     'bg-background'
                 )}
@@ -500,6 +647,19 @@ export const MainLayout: React.FC = () => {
                 <HelpDialog />
                 <OpenCodeStatusDialog />
                 <SessionDialogs />
+                {showBootHealth && (
+                    <div className="pointer-events-none absolute right-3 top-3 z-40">
+                        <StatusChip
+                            tone={bootTone}
+                            icon={bootReady
+                                ? <RiCheckboxCircleFill className="h-3.5 w-3.5" />
+                                : <RiLoader4Line className="h-3.5 w-3.5 animate-spin" />}
+                            className="pointer-events-auto bg-card/90 backdrop-blur-sm"
+                        >
+                            {bootLabel}
+                        </StatusChip>
+                    </div>
+                )}
 
                 {isMobile ? (
                 <>
@@ -560,16 +720,37 @@ export const MainLayout: React.FC = () => {
                                     <SessionSidebar hideProjectSelector />
                                 </Sidebar>
                                 <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+                                    {isDesktopApp ? <RuntimeStrip /> : null}
                                     <div className="flex flex-1 min-h-0 overflow-hidden">
                                         <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">
                                             <main className="flex-1 overflow-hidden bg-background relative">
-                                                <div className={cn('absolute inset-0', !isChatActive && 'invisible')}>
-                                                    <ErrorBoundary><ChatView /></ErrorBoundary>
-                                                </div>
-                                                {secondaryView && (
-                                                    <div className="absolute inset-0">
-                                                        <ErrorBoundary>{secondaryView}</ErrorBoundary>
+                                                {isBrowserSplitView ? (
+                                                    <div className="absolute inset-0 flex min-h-0 min-w-0 bg-background">
+                                                        {(layoutMode === 'split' || layoutMode === 'browser-only') && (
+                                                            <div className="min-h-0 min-w-0 flex-1">
+                                                                <ErrorBoundary><BrowserView /></ErrorBoundary>
+                                                            </div>
+                                                        )}
+                                                        {(layoutMode === 'split' || layoutMode === 'chat-only') && (
+                                                            <aside className={cn(
+                                                                "flex h-full min-h-0 flex-col border-l border-border/70 bg-sidebar/45 backdrop-blur-sm",
+                                                                layoutMode === 'split' ? "w-[min(42vw,560px)] min-w-[420px] max-w-[620px]" : "flex-1"
+                                                            )}>
+                                                                <ErrorBoundary><ChatView /></ErrorBoundary>
+                                                            </aside>
+                                                        )}
                                                     </div>
+                                                ) : (
+                                                    <>
+                                                        <div className={cn('absolute inset-0', !isChatActive && 'invisible')}>
+                                                            <ErrorBoundary><ChatView /></ErrorBoundary>
+                                                        </div>
+                                                        {secondaryView && (
+                                                            <div className="absolute inset-0">
+                                                                <ErrorBoundary>{secondaryView}</ErrorBoundary>
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </main>
                                             <ContextPanel />
@@ -607,6 +788,8 @@ export const MainLayout: React.FC = () => {
                 </>
             )}
 
+            {/* Browser selection floating bubble (desktop only) */}
+            {isDesktopApp && <BrowserSelectionBubble />}
         </div>
     </DiffWorkerProvider>
     );

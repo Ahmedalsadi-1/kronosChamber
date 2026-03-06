@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { cn } from '@/lib/utils';
-import type { Part } from '@opencode-ai/sdk/v2';
+import type { Part } from '@kronoscode-ai/sdk/v2';
 import type { AgentMentionInfo } from '../types';
 
 type PartWithText = Part & { text?: string; content?: string; value?: string };
@@ -15,7 +15,7 @@ type UserTextPartProps = {
 
 const buildMentionUrl = (name: string): string => {
     const encoded = encodeURIComponent(name);
-    return `https://opencode.ai/docs/agents/#${encoded}`;
+    return `https://kronoscode.ai/docs/agents/#${encoded}`;
 };
 
 const UserTextPart: React.FC<UserTextPartProps> = ({ part, messageId, agentMention }) => {

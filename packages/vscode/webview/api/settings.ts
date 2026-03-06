@@ -1,4 +1,4 @@
-import type { SettingsAPI, SettingsLoadResult, SettingsPayload } from '@openchamber/ui/lib/api/types';
+import type { SettingsAPI, SettingsLoadResult, SettingsPayload } from '@kronoscode-ai/ui/lib/api/types';
 
 // Use same endpoints as web - fetch interceptor handles URL rewriting
 const SETTINGS_ENDPOINT = '/api/config/settings';
@@ -59,11 +59,11 @@ export const createVSCodeSettingsAPI = (): SettingsAPI => ({
     return payload;
   },
 
-  async restartOpenCode(): Promise<{ restarted: boolean }> {
+  async restartKronosCode(): Promise<{ restarted: boolean }> {
     const response = await fetch(RELOAD_ENDPOINT, { method: 'POST' });
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || 'Failed to restart OpenCode');
+      throw new Error(error.error || 'Failed to restart KronosCode');
     }
     return { restarted: true };
   },

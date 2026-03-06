@@ -3,7 +3,7 @@ import {
   getConfigUpdateSnapshot,
   subscribeConfigUpdate,
 } from "@/lib/configUpdate";
-import { OpenChamberLogo } from "./OpenChamberLogo";
+import { KronosChamberLogo } from "./KronosChamberLogo";
 
 export const ConfigUpdateOverlay: React.FC = () => {
   const [{ isUpdating, message }, setState] = React.useState(() => getConfigUpdateSnapshot());
@@ -18,7 +18,7 @@ export const ConfigUpdateOverlay: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-6 backdrop-blur-md">
-      <OpenChamberLogo width={80} height={80} isAnimated />
+      <KronosChamberLogo width={80} height={80} isAnimated />
       <p className="typography-body text-muted-foreground">
         {message}
       </p>

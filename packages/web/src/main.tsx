@@ -1,17 +1,20 @@
 import { createWebAPIs } from './api';
 import { registerSW } from 'virtual:pwa-register';
 
-import type { RuntimeAPIs } from '@openchamber/ui/lib/api/types';
-import '@openchamber/ui/index.css';
-import '@openchamber/ui/styles/fonts';
+import type { RuntimeAPIs } from '@kronoscode-ai/ui/lib/api/types';
+import '@kronoscode-ai/ui/index.css';
+import '@kronoscode-ai/ui/styles/fonts';
 
 declare global {
   interface Window {
+    __KRONOSCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
     __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
   }
 }
 
-window.__OPENCHAMBER_RUNTIME_APIS__ = createWebAPIs();
+const runtimeApis = createWebAPIs();
+window.__KRONOSCHAMBER_RUNTIME_APIS__ = runtimeApis;
+window.__OPENCHAMBER_RUNTIME_APIS__ = runtimeApis;
 
 registerSW({
   onRegistered(registration: ServiceWorkerRegistration | undefined) {
@@ -29,4 +32,4 @@ registerSW({
   },
 });
 
-import('@openchamber/ui/main');
+import('@kronoscode-ai/ui/main');

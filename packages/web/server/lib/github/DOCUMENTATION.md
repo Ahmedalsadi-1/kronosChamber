@@ -35,8 +35,8 @@ This module provides GitHub authentication, OAuth device flow, Octokit client fa
 
 ## Storage and configuration
 - Auth storage: `~/.config/openchamber/github-auth.json` (atomic writes, mode 0o600).
-- Client ID: `OPENCHAMBER_GITHUB_CLIENT_ID` env var → `settings.json` → default.
-- Scopes: `OPENCHAMBER_GITHUB_SCOPES` env var → `settings.json` → default.
+- Client ID: `KRONOSCHAMBER_GITHUB_CLIENT_ID` env var → `settings.json` → default.
+- Scopes: `KRONOSCHAMBER_GITHUB_SCOPES` env var → `settings.json` → default.
 
 ## Account resolution
 Account IDs are resolved in priority order: explicit `accountId` → user login → user ID → token prefix.

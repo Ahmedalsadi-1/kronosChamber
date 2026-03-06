@@ -163,7 +163,6 @@ const normalizePath = (value?: string | null) => {
   const normalized = value.replace(/\\/g, '/').replace(/\/+$/, '');
   return normalized.length === 0 ? '/' : normalized;
 };
-
 const normalizeForBranchComparison = (value: string): string => {
   return value
     .toLowerCase()
@@ -1120,7 +1119,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         })
         .catch(async () => {
           // SDK worktrees can be outside UI runtime FS permissions.
-          // Probe via OpenCode API instead of local FS.
+          // Probe via KronosCode API instead of local FS.
           const looksLikeSdkWorktree =
             directory.includes('/opencode/worktree/') ||
             directory.includes('/.opencode/data/worktree/') ||

@@ -72,7 +72,7 @@ const toNavigationUrl = (rawUrl: string): string => {
 
 const getLocalOrigin = (): string => {
   if (typeof window === 'undefined') return '';
-  return window.__OPENCHAMBER_LOCAL_ORIGIN__ || window.location.origin;
+  return window.__KRONOSCHAMBER_LOCAL_ORIGIN__ || window.location.origin;
 };
 
 const makeId = (): string => {
@@ -398,7 +398,7 @@ export function DesktopHostSwitcherDialog({
             Instance
           </DialogTitle>
           <DialogDescription>
-            Switch between Local and remote OpenChamber servers
+            Switch between Local and remote KronosChamber servers
           </DialogDescription>
         </DialogHeader>
       )}

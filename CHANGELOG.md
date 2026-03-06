@@ -6,14 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ## [1.7.3] - 2026-02-21
 
-- Settings: added customizable keyboard shortcuts for chat actions, panel toggles, and services, so you can better match OpenChamber to your workflow (thanks to @nelsonPires5).
+- Settings: added customizable keyboard shortcuts for chat actions, panel toggles, and services, so you can better match KronosChamber to your workflow (thanks to @nelsonPires5).
 - Sessions: added custom folders to group chat sessions, with move/rename/delete flows and persisted collapse state per project (thanks to @nguyenngothuong).
 - Notifications: improved agent progress notifications and permission handling to reduce noisy prompts during active runs (thanks to @nguyenngothuong).
 - Diff/Plans/Files: restored inline comments making more like a GitHub style again (thanks to @nelsonPires5).
 - Terminal: restored terminal text copy behavior, so selecting and copying command output works reliably again (thanks to @shekohex).
 - UI: unified clipboard copy behavior across Desktop app, Web app, and VS Code extension for more consistent copy actions and feedback.
 - Reliability: improved startup environment detection by capturing login-shell environment snapshots, reducing missing PATH/tool issues on launch.
-- Reliability: refactored OpenCode config/auth integration into domain modules for steadier provider auth and command loading flows (thanks to @nelsonPires5).
+- Reliability: refactored KronosCode config/auth integration into domain modules for steadier provider auth and command loading flows (thanks to @nelsonPires5).
 
 
 ## [1.7.2] - 2026-02-20
@@ -28,12 +28,12 @@ All notable changes to this project will be documented in this file.
 
 ## [1.7.1] - 2026-02-18
 
-- Chat: slash commands now follow server command semantics (including multiline arguments), so command behavior is more consistent with OpenCode CLI.
+- Chat: slash commands now follow server command semantics (including multiline arguments), so command behavior is more consistent with KronosCode CLI.
 - Chat: added a shell mode triggered by leading `!`, with inline output visibility/copy.
 - Chat: improved delegated-task clarity with richer subtask bubbles, better task-detail rendering, and parent-chat surfacing for child permission/question requests.
 - Chat: improved `@` mention autocomplete by prioritizing agents and cleaning up ordering for faster picks.
-- Skills: discovery now uses OpenCode API as the source of truth with safer fallback scanning, improving installed-state accuracy.
-- Skills: upgraded editing/install UX with better code editing, syntax-aware related files, and clearer location targeting across user/project .opencode and .agents scopes.
+- Skills: discovery now uses KronosCode API as the source of truth with safer fallback scanning, improving installed-state accuracy.
+- Skills: upgraded editing/install UX with better code editing, syntax-aware related files, and clearer location targeting across user/project .kronoscode and .agents scopes.
 - Mobile: fixed accidental abort right after tapping Send on touch devices, reducing interrupted responses (thanks to @shekohex).
 - Maintenance: removed deprecated GitHub Actions cloud runtime assets and docs to reduce setup confusion (thanks to @yulia-ivashko).
 
@@ -44,7 +44,7 @@ All notable changes to this project will be documented in this file.
 - Chat: Mermaid diagrams now render inline in assistant messages, with quick copy/download actions for easier sharing.
 - UI: added a context overview panel with token usage, cost breakdown, and raw message inspection to make session debugging easier.
 - Sessions: project icon and color customizations now persist reliably across restarts.
-**- Reliability: managed local OpenCode runtimes now use rotated secure auth and tighter lifecycle control across runtimes, reducing stale-process and reconnect issues (thanks to @yulia-ivashko).**
+**- Reliability: managed local KronosCode runtimes now use rotated secure auth and tighter lifecycle control across runtimes, reducing stale-process and reconnect issues (thanks to @yulia-ivashko).**
 - Git/GitHub: improved backend reliability for repository and auth operations, helping branch and PR flows stay more predictable (thanks to @nelsonPires5).
 
 
@@ -60,7 +60,7 @@ All notable changes to this project will be documented in this file.
 - Sessions: introduced the ability to pin sessions within your groups for easy access.
 - Settings: added a configurable Zen model for commit messages generation and summarization of notifications (thanks to @gsxdsm).
 - Usage: added NanoGPT quota support and hardened provider handling for more reliable usage tracking (thanks to @nelsonPires5).
-- Reliability: startup now auto-detects and safely connects to an existing OpenCode server, reducing duplicate-server conflicts (thanks to @ruslan-kurchenko).
+- Reliability: startup now auto-detects and safely connects to an existing KronosCode server, reducing duplicate-server conflicts (thanks to @ruslan-kurchenko).
 - Desktop: improved day-to-day polish with restored desktop window geometry and posiotion (thanks to @yulia-ivashko).
 - Mobile: fixes for small-screen editor, terminal, and layout overlap issues (thanks to @gsxdsm, @nelsonPires5).
 
@@ -102,12 +102,12 @@ All notable changes to this project will be documented in this file.
 - Usage: added per-model quota breakdowns with collapsible groups, and fixed provider dropdown scrolling (thanks to @nelsonPires5, @gsxdsm).
 - Terminal: improved input responsiveness with a persistent low-latency transport for steadier typing (thanks to @shekohex).
 - Mobile: fixed chat input layout issues on small screens (thanks to @nelsonPires5).
-- Reliability: fixed OpenCode auth pass-through and proxy env handling to reduce intermittent connection/auth issues (thanks to @gsxdsm).
+- Reliability: fixed KronosCode auth pass-through and proxy env handling to reduce intermittent connection/auth issues (thanks to @gsxdsm).
 
 
 ## [1.6.5] - 2026-02-6
 
-- Settings: added an OpenCode CLI path override so you can point OpenChamber at a custom/local CLI install.
+- Settings: added an KronosCode CLI path override so you can point KronosChamber at a custom/local CLI install.
 - Chat: added arrow-key prompt history and an optional setting to persist input drafts between restarts (thanks to @gsxdsm).
 - Chat: thinking/reasoning blocks now render more consistently, and justification visibility settings now apply reliably (thanks to @gsxdsm).
 - Diff/Plans: added inline comment drafts so you can leave line-level notes and feed them back into requests (thanks to @nelsonPires5).
@@ -115,12 +115,12 @@ All notable changes to this project will be documented in this file.
 - Worktrees: improved worktree flow reliability, including cleaner handling when a worktree was already removed outside the app (thanks to @gsxdsm).
 - Terminal: improved Android keyboard behavior and removed distracting native caret blink in terminal inputs (thanks to @shekohex).
 - UI: added Vitesse Dark and Vitesse Light theme presets.
-- Reliability: improved OpenCode binary resolution and HOME-path handling across runtimes for steadier local startup.
+- Reliability: improved KronosCode binary resolution and HOME-path handling across runtimes for steadier local startup.
 
 
 ## [1.6.4] - 2026-02-5
 
-- Desktop: switch between local and remote OpenChamber instances, plus a thinner runtime for better feature parity and fewer desktop-only quirks.
+- Desktop: switch between local and remote KronosChamber instances, plus a thinner runtime for better feature parity and fewer desktop-only quirks.
 - VSCode: improved Windows PATH resolution and cold-start readiness checks to reduce "stuck loading" for sessions/models/agents.
 - Mobile: split Agent/Model controls and a quick commands button with autocomplete (Commands/Agents/Files) for easier input (thanks to @Jovines, @gsxdsm).
 - Chat: select text in messages to quickly add it to your prompt or start a new session (thanks to @gsxdsm).
@@ -234,7 +234,7 @@ All notable changes to this project will be documented in this file.
 - UI: updated header and sidebar layout for a cleaner, tighter workspace fit (thanks to @TheRealAshik).
 - Diff: large diffs now lazy-load to avoid freezes (thanks to @Jovines).
 - Web: added Background notifications for PWA.
-- Reliability: connect to external OpenCode servers without auto-start and fixed subagent crashes (thanks to @TaylorBeeston).
+- Reliability: connect to external KronosCode servers without auto-start and fixed subagent crashes (thanks to @TaylorBeeston).
 
 
 ## [1.5.3] - 2026-01-20
@@ -259,12 +259,12 @@ All notable changes to this project will be documented in this file.
 - Chat: optimized message loading for opening sessions.
 - UI: added one-click diagnostics copy in the About dialog.
 - VSCode: tuned layout breakpoint and server readiness timeout for steadier startup.
-- Reliability: improved OpenCode process cleanup to reduce orphaned servers.
+- Reliability: improved KronosCode process cleanup to reduce orphaned servers.
 
 
 ## [1.5.1] - 2026-01-16
 
-- Desktop: fixed orphaned OpenCode processes not being cleaned up on restart or exit.
+- Desktop: fixed orphaned KronosCode processes not being cleaned up on restart or exit.
 - Opencode: fixed issue with reloading configuration was killing the app
 
 
@@ -275,7 +275,7 @@ All notable changes to this project will be documented in this file.
 - Git Identities: added "default identity" setting with one-click set/unset and automatic local identity detection.
 - VSCode: improved server management to ensure it initializes within the workspace directory with context-aware readiness checks.
 - VSCode: added responsive layout with sessions sidebar + chat side-by-side when wide, compact header, and streamlined settings.
-- Web/VSCode: fixed orphaned OpenCode processes not being cleaned up on restart or exit.
+- Web/VSCode: fixed orphaned KronosCode processes not being cleaned up on restart or exit.
 - Web: the server now automatically resolves and uses an available port if the default is occupied.
 - Stability: fixed heartbeat race condition causing session stalls during long tasks (thanks to @tybradle).
 - Desktop: fixed commands for worktree setup access to PATH.
@@ -293,7 +293,7 @@ All notable changes to this project will be documented in this file.
 ## [1.4.8] - 2026-01-14
 
 - Git Identities: added token-based authentication support with ~/.git-credentials discovery and import.
-- Settings: consolidated Git settings and added opencode zen model selection for commit generation (thanks to @nelsonPires5).
+- Settings: consolidated Git settings and added kronoscode zen model selection for commit generation (thanks to @nelsonPires5).
 - Web Notifications: added configurable native web notifications for assistant completion (thanks to @vio1ator).
 - Chat: sidebar sessions are now automatically sorted by last updated date (thanks to @vio1ator).
 - Chat: fixed edit tool output and added turn duration.
@@ -310,7 +310,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.4.6] - 2026-01-09
 
-- VSCode/Web: switch opencode cli management to SDK.
+- VSCode/Web: switch kronoscode cli management to SDK.
 - Input: removed auto-complete and auto-correction.
 - Shortcuts: switched agent cycling shortcut from Shift + TAB to TAB again.
 - Chat: added question tool support with a rich UI for interaction.
@@ -346,7 +346,7 @@ All notable changes to this project will be documented in this file.
 ## [1.4.3] - 2026-01-04
 
 - VS Code extension: added Agent Manager panel to run the same prompt across up to 5 models in parallel (thanks to @wienans).
-- Added permission prompt UI for tools configured with "ask" in opencode.json, showing requested patterns and "Always Allow" options (thanks to @aptdnfapt).
+- Added permission prompt UI for tools configured with "ask" in kronoscode.json, showing requested patterns and "Always Allow" options (thanks to @aptdnfapt).
 - Added "Open subAgent session" button on task tool outputs to quickly navigate to child sessions (thanks to @aptdnfapt).
 - VS Code extension: improved activation reliability and error handling.
 
@@ -357,7 +357,7 @@ All notable changes to this project will be documented in this file.
 - Added `/undo` and `/redo` commands for reverting and restoring messages in a session (thanks to @aptdnfapt).
 - Added fork button on user messages to create a new session from any point (thanks to @aptdnfapt).
 - Desktop app: keyboard shortcuts now use Cmd on macOS and Ctrl on web/other platforms (thanks to @sakhnyuk).
-- Migrated to OpenCode SDK v2 with improved API types and streaming.
+- Migrated to KronosCode SDK v2 with improved API types and streaming.
 
 
 ## [1.4.1] - 2026-01-02
@@ -387,7 +387,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.3.9] - 2025-12-30
 
- - Added skills management to settings with the ability to create, edit, and delete skills (make sure you have the latest OpenCode version for skills support).
+ - Added skills management to settings with the ability to create, edit, and delete skills (make sure you have the latest KronosCode version for skills support).
 - Added Skills catalog functionality for discovering and installing skills from external sources.
 - VS Code extension: added right-click context menu with "Add to Context," "Explain," and "Improve Code" actions (thanks to @wienans).
 
@@ -396,9 +396,9 @@ All notable changes to this project will be documented in this file.
 
 - Added Intel Mac (x86_64) support for the desktop application (thanks to @rothnic).
 - Build workflow now generates separate builds for Apple Silicon (arm64) and Intel (x86_64) Macs (thanks to @rothnic).
-- Improved dev server HMR by reusing a healthy OpenCode process to avoid zombie instances.
+- Improved dev server HMR by reusing a healthy KronosCode process to avoid zombie instances.
 - Added queued message mode with chips, batching, and idle auto‑send (including attachments).
-- Added queue mode toggle to OpenChamber settings (chat section) with persistence across runtimes.
+- Added queue mode toggle to KronosChamber settings (chat section) with persistence across runtimes.
 - Fixed scroll position persistence for active conversation turns across session switches.
 - Refactored Agents/Commands management with ability to configure project/user scopes.
 
@@ -440,8 +440,8 @@ All notable changes to this project will be documented in this file.
 
 ## [1.3.3] - 2025-12-25
 
-- Updated OpenCode SDK to 1.0.185 across all app versions.
-- VS Code extension: fixed startup, more reliable OpenCode CLI/API management, and stabilized API proxying/streaming.
+- Updated KronosCode SDK to 1.0.185 across all app versions.
+- VS Code extension: fixed startup, more reliable KronosCode CLI/API management, and stabilized API proxying/streaming.
 - VS Code extension: added an animated loading screen and introduced command for status/debug output.
 - Fixed session activity tracking so it correctly handles transitions through states (including worktree sessions).
 - Fixed directory path handling (including `~` expansion) to prevent invalid paths and related Git/worktree errors.
@@ -593,7 +593,7 @@ Thanks to @theblazehen for contributing these features!
 ## [1.1.0] - 2025-12-13
 
 - Added assistant answer fork flow so users can start a new session from an assistant plan/response with inherited context.
-- Added OpenChamber VS Code extension with editor integration: file picker, click-to-open in tool parts.
+- Added KronosChamber VS Code extension with editor integration: file picker, click-to-open in tool parts.
 - Improved scroll performance with force flag and RAF placeholder.
 - Added git polling backoff optimization.
 
@@ -608,7 +608,7 @@ Thanks to @theblazehen for contributing these features!
 
 ## [1.0.8] - 2025-12-08
 
-- Added fallback detection for OpenCode CLI in ~/.opencode/bin.
+- Added fallback detection for KronosCode CLI in ~/.kronoscode/bin.
 - Added window focus after app restart/update.
 - Adapted traffic lights position and corner radius for older macOS versions.
 
@@ -649,6 +649,6 @@ Thanks to @theblazehen for contributing these features!
 
 ## [1.0.1] - 2025-12-07
 
-- Initial public release of OpenChamber web and desktop packages in a unified monorepo.
+- Initial public release of KronosChamber web and desktop packages in a unified monorepo.
 - Added GitHub Actions release pipeline with macOS signing/notarization, npm publish, and release asset uploads.
-- Introduced OpenCode agent chat experience with section-based navigation, theming, and session persistence.
+- Introduced KronosCode agent chat experience with section-based navigation, theming, and session persistence.

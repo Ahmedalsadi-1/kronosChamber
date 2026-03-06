@@ -26,7 +26,7 @@ import { useMessageStore } from '@/stores/messageStore';
 import { useContextStore } from '@/stores/contextStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useGitHubAuthStore } from '@/stores/useGitHubAuthStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { createWorktreeSessionForNewBranchExact } from '@/lib/worktreeSessionCreator';
 import { validateWorktreeCreate } from '@/lib/worktrees/worktreeManager';
 import { getRemotes } from '@/lib/gitApi';
@@ -501,7 +501,7 @@ export function GitHubPullRequestPickerDialog({
 
       void useSessionStore.getState().updateSessionTitle(sessionId, sessionTitle).catch(() => undefined);
       try {
-        useSessionStore.getState().initializeNewOpenChamberSession(sessionId, useConfigStore.getState().agents);
+        useSessionStore.getState().initializeNewKronosChamberSession(sessionId, useConfigStore.getState().agents);
       } catch {
         // ignore
       }
@@ -602,7 +602,7 @@ Nice-to-have:
 - None`;
       const contextText = buildPullRequestContextText(prContext);
 
-      void opencodeClient.sendMessage({
+      void kronoscodeClient.sendMessage({
         id: sessionId,
         providerID,
         modelID,

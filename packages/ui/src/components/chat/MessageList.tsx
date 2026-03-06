@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Message, Part } from '@opencode-ai/sdk/v2';
+import type { Message, Part } from '@kronoscode-ai/sdk/v2';
 import { useShallow } from 'zustand/react/shallow';
 
 import ChatMessage from './ChatMessage';
@@ -12,6 +12,8 @@ import { filterSyntheticParts } from '@/lib/messages/synthetic';
 import { detectTurns, type Turn } from './hooks/useTurnGrouping';
 import { TurnGroupingProvider, useMessageNeighbors, useTurnGroupingContextForMessage, useTurnGroupingContextStatic, useLastTurnMessageIds } from './contexts/TurnGroupingContext';
 import { useSessionStore } from '@/stores/useSessionStore';
+import { useAgentRuntimeStore } from '@/stores/useAgentRuntimeStore';
+import { RuntimeTaskCard } from './runtime/RuntimeTaskCard';
 
 interface ChatMessageEntry {
     info: Message;
@@ -421,6 +423,15 @@ const MessageList: React.FC<MessageListProps> = ({
     onRenderEarlier,
     scrollToBottom,
 }) => {
+    const currentSessionId = useSessionStore((state) => state.currentSessionId);
+    const bindRuntimeSession = useAgentRuntimeStore((state) => state.bindSession);
+    const tasksByID = useAgentRuntimeStore((state) => state.tasksByID);
+    const orderedTaskIDs = useAgentRuntimeStore((state) => state.orderedTaskIDs);
+
+    React.useEffect(() => {
+        void bindRuntimeSession(currentSessionId ?? null);
+    }, [bindRuntimeSession, currentSessionId]);
+
     React.useEffect(() => {
         if (permissions.length === 0 && questions.length === 0) {
             return;
@@ -589,6 +600,21 @@ const MessageList: React.FC<MessageListProps> = ({
         };
     }, [displayMessages]);
 
+    const runtimeTasks = React.useMemo(() => {
+        const activeSession = currentSessionId ?? null;
+        const selected = orderedTaskIDs
+            .map((taskID) => tasksByID[taskID])
+            .filter((task): task is NonNullable<typeof task> => Boolean(task))
+            .filter((task) => {
+                if (!activeSession) {
+                    return true;
+                }
+                return task.sessionID === activeSession;
+            });
+
+        return selected.slice(0, 4);
+    }, [currentSessionId, orderedTaskIDs, tasksByID]);
+
     return (
         <TurnGroupingProvider messages={displayMessages}>
             <div>
@@ -629,6 +655,14 @@ const MessageList: React.FC<MessageListProps> = ({
                     getAnimationHandlers={getAnimationHandlers}
                     scrollToBottom={scrollToBottom}
                 />
+
+                {runtimeTasks.length > 0 && (
+                    <div className="pt-2">
+                        {runtimeTasks.map((task) => (
+                            <RuntimeTaskCard key={task.taskID} task={task} />
+                        ))}
+                    </div>
+                )}
 
                 {(questions.length > 0 || permissions.length > 0) && (
                     <div>

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   CONFIG_FILE,
-  OPENCODE_CONFIG_DIR,
+  KRONOSCODE_CONFIG_DIR,
   COMMAND_DIR,
   COMMAND_SCOPE,
   ensureDirs,
@@ -23,11 +23,11 @@ import {
  * Ensure project-level command directory exists
  */
 function ensureProjectCommandDir(workingDirectory) {
-  const projectCommandDir = path.join(workingDirectory, '.opencode', 'commands');
+  const projectCommandDir = path.join(workingDirectory, '.kronoscode', 'commands');
   if (!fs.existsSync(projectCommandDir)) {
     fs.mkdirSync(projectCommandDir, { recursive: true });
   }
-  const legacyProjectCommandDir = path.join(workingDirectory, '.opencode', 'command');
+  const legacyProjectCommandDir = path.join(workingDirectory, '.kronoscode', 'command');
   if (!fs.existsSync(legacyProjectCommandDir)) {
     fs.mkdirSync(legacyProjectCommandDir, { recursive: true });
   }
@@ -38,8 +38,8 @@ function ensureProjectCommandDir(workingDirectory) {
  * Get project-level command path
  */
 function getProjectCommandPath(workingDirectory, commandName) {
-  const pluralPath = path.join(workingDirectory, '.opencode', 'commands', `${commandName}.md`);
-  const legacyPath = path.join(workingDirectory, '.opencode', 'command', `${commandName}.md`);
+  const pluralPath = path.join(workingDirectory, '.kronoscode', 'commands', `${commandName}.md`);
+  const legacyPath = path.join(workingDirectory, '.kronoscode', 'command', `${commandName}.md`);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 }
@@ -49,7 +49,7 @@ function getProjectCommandPath(workingDirectory, commandName) {
  */
 function getUserCommandPath(commandName) {
   const pluralPath = path.join(COMMAND_DIR, `${commandName}.md`);
-  const legacyPath = path.join(OPENCODE_CONFIG_DIR, 'command', `${commandName}.md`);
+  const legacyPath = path.join(KRONOSCODE_CONFIG_DIR, 'command', `${commandName}.md`);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 }
@@ -171,7 +171,7 @@ function createCommand(commandName, config, workingDirectory, scope) {
   const layers = readConfigLayers(workingDirectory);
   const jsonSource = getJsonEntrySource(layers, 'command', commandName);
   if (jsonSource.exists) {
-    throw new Error(`Command ${commandName} already exists in opencode.json`);
+    throw new Error(`Command ${commandName} already exists in kronoscode.json`);
   }
 
   let targetPath;
@@ -317,7 +317,7 @@ function deleteCommand(commandName, workingDirectory) {
     if (!jsonSource.config.command) jsonSource.config.command = {};
     delete jsonSource.config.command[commandName];
     writeConfig(jsonSource.config, jsonSource.path);
-    console.log(`Removed command from opencode.json: ${commandName}`);
+    console.log(`Removed command from kronoscode.json: ${commandName}`);
     deleted = true;
   }
 

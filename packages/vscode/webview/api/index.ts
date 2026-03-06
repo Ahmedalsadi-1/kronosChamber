@@ -1,4 +1,4 @@
-import type { RuntimeAPIs, TerminalAPI, NotificationsAPI } from '@openchamber/ui/lib/api/types';
+import type { RuntimeAPIs, TerminalAPI, NotificationsAPI, InterconnectAPI } from '@kronoscode-ai/ui/lib/api/types';
 import { createVSCodeFilesAPI } from './files';
 import { createVSCodeSettingsAPI } from './settings';
 import { createVSCodePermissionsAPI } from './permissions';
@@ -22,6 +22,13 @@ const createStubNotificationsAPI = (): NotificationsAPI => ({
   canNotify: () => true,
 });
 
+const createStubInterconnectAPI = (): InterconnectAPI => ({
+  getState: async () => null,
+  subscribeStatus: () => () => {},
+  subscribeEvents: () => () => {},
+  forceReconnect: async () => false,
+});
+
 export const createVSCodeAPIs = (): RuntimeAPIs => ({
   runtime: { platform: 'vscode', isDesktop: false, isVSCode: true, label: 'VS Code Extension' },
   terminal: createStubTerminalAPI(),
@@ -31,6 +38,7 @@ export const createVSCodeAPIs = (): RuntimeAPIs => ({
   permissions: createVSCodePermissionsAPI(),
   notifications: createStubNotificationsAPI(),
   github: createVSCodeGitHubAPI(),
+  interconnect: createStubInterconnectAPI(),
   tools: createVSCodeToolsAPI(),
   editor: createVSCodeEditorAPI(),
   vscode: createVSCodeActionsAPI(),

@@ -29,6 +29,35 @@ export type SkillCatalogConfig = {
   gitIdentityId?: string;
 };
 
+export type DesktopAgentMode = 'off' | 'e2b' | 'openbrowser' | 'desktop-browser';
+
+export type DesktopBrowserPage = {
+  id: string;
+  index: number;
+  title: string;
+  url: string;
+  active: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  isLoading: boolean;
+  lastError?: string | null;
+};
+
+export type DesktopBrowserState = {
+  enabled: boolean;
+  windowLabel: string;
+  pages: DesktopBrowserPage[];
+  activePageID: string | null;
+};
+
+export type DesktopBrowserBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible?: boolean;
+};
+
 export type DesktopSettings = {
   themeId?: string;
   useSystemTheme?: boolean;
@@ -37,8 +66,12 @@ export type DesktopSettings = {
   darkThemeId?: string;
   lastDirectory?: string;
   homeDirectory?: string;
-  // Optional absolute path to `opencode` binary.
-  opencodeBinary?: string;
+  // Optional absolute path to `kronoscode` binary.
+  kronoscodeBinary?: string;
+  aiBrowserEnabled?: boolean;
+  agentMode?: DesktopAgentMode;
+  agentModeByProject?: Record<string, Exclude<DesktopAgentMode, 'off'>>;
+  browserOpenAtStartup?: boolean;
   projects?: ProjectEntry[];
   activeProjectId?: string;
   approvedDirectories?: string[];
@@ -150,7 +183,7 @@ const normalizeOrigin = (raw: string): string | null => {
 
 export const isDesktopLocalOriginActive = (): boolean => {
   if (typeof window === 'undefined') return false;
-  const local = typeof window.__OPENCHAMBER_LOCAL_ORIGIN__ === 'string' ? window.__OPENCHAMBER_LOCAL_ORIGIN__ : '';
+  const local = typeof window.__KRONOSCHAMBER_LOCAL_ORIGIN__ === 'string' ? window.__KRONOSCHAMBER_LOCAL_ORIGIN__ : '';
   const localOrigin = normalizeOrigin(local);
   const currentOrigin = normalizeOrigin(window.location.origin) || window.location.origin;
   return Boolean(localOrigin && currentOrigin && localOrigin === currentOrigin);
@@ -160,7 +193,16 @@ export const isDesktopLocalOriginActive = (): boolean => {
 // (Remote pages can temporarily lose window.__TAURI__ if URL doesn't match remote allowlist.)
 export const isDesktopShell = (): boolean => {
   if (typeof window === 'undefined') return false;
-  if (typeof window.__OPENCHAMBER_LOCAL_ORIGIN__ === 'string' && window.__OPENCHAMBER_LOCAL_ORIGIN__.length > 0) {
+  const runtimeDesktop =
+    (window as { __KRONOSCHAMBER_RUNTIME_APIS__?: { runtime?: { isDesktop?: boolean } } })
+      .__KRONOSCHAMBER_RUNTIME_APIS__?.runtime?.isDesktop;
+  if (runtimeDesktop === true) {
+    return true;
+  }
+  if (window.__KRONOSCHAMBER_DESKTOP__ === true) {
+    return true;
+  }
+  if (typeof window.__KRONOSCHAMBER_LOCAL_ORIGIN__ === 'string' && window.__KRONOSCHAMBER_LOCAL_ORIGIN__.length > 0) {
     return true;
   }
   return isTauriShell();
@@ -168,13 +210,35 @@ export const isDesktopShell = (): boolean => {
 
 export const isVSCodeRuntime = (): boolean => {
   if (typeof window === "undefined") return false;
-  const apis = (window as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } }).__OPENCHAMBER_RUNTIME_APIS__;
+  const apis = (window as { __KRONOSCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } }).__KRONOSCHAMBER_RUNTIME_APIS__;
   return apis?.runtime?.isVSCode === true;
+};
+
+const invokeDesktopCommand = async <T>(
+  command: string,
+  args?: Record<string, unknown>,
+  scope: 'default' | 'browser' = 'default',
+): Promise<T | null> => {
+  const isBrowserScope = scope === 'browser';
+  const canInvoke =
+    isTauriShell()
+    && (isDesktopLocalOriginActive() || (isBrowserScope && isDesktopShell()));
+  if (!canInvoke) {
+    return null;
+  }
+  try {
+    const tauri = (window as unknown as { __TAURI__?: TauriGlobal }).__TAURI__;
+    const result = await tauri?.core?.invoke?.(command, args);
+    return (result as T) ?? null;
+  } catch (error) {
+    console.warn(`Failed to invoke desktop command "${command}"`, error);
+    return null;
+  }
 };
 
 export const isWebRuntime = (): boolean => {
   if (typeof window === "undefined") return false;
-  const apis = (window as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { platform?: string } } }).__OPENCHAMBER_RUNTIME_APIS__;
+  const apis = (window as { __KRONOSCHAMBER_RUNTIME_APIS__?: { runtime?: { platform?: string } } }).__KRONOSCHAMBER_RUNTIME_APIS__;
   const platform = apis?.runtime?.platform;
   if (platform === 'web') {
     return true;
@@ -188,7 +252,7 @@ export const isWebRuntime = (): boolean => {
 
 export const getDesktopHomeDirectory = async (): Promise<string | null> => {
   if (typeof window !== 'undefined') {
-    const embedded = window.__OPENCHAMBER_HOME__;
+    const embedded = window.__KRONOSCHAMBER_HOME__;
     if (embedded && embedded.length > 0) {
       return embedded;
     }
@@ -500,5 +564,179 @@ export const clearDesktopCache = async (): Promise<boolean> => {
   } catch (error) {
     console.warn('Failed to clear cache', error);
     return false;
+  }
+};
+
+const normalizeDesktopBrowserState = (value: unknown): DesktopBrowserState | null => {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as {
+    enabled?: unknown;
+    windowLabel?: unknown;
+    pages?: unknown;
+    activePageID?: unknown;
+  };
+  const pages = Array.isArray(raw.pages)
+    ? raw.pages
+      .filter((entry) => entry && typeof entry === 'object')
+      .map((entry) => {
+        const page = entry as Record<string, unknown>;
+        return {
+          id: typeof page.id === 'string' ? page.id : '',
+          index: typeof page.index === 'number' ? page.index : 0,
+          title: typeof page.title === 'string' ? page.title : 'Untitled',
+          url: typeof page.url === 'string' ? page.url : '',
+          active: page.active === true,
+          canGoBack: page.canGoBack === true,
+          canGoForward: page.canGoForward === true,
+          isLoading: page.isLoading === true,
+          lastError: typeof page.lastError === 'string' ? page.lastError : null,
+        } satisfies DesktopBrowserPage;
+      })
+      .filter((page) => page.id.length > 0)
+    : [];
+
+  return {
+    enabled: raw.enabled !== false,
+    windowLabel: typeof raw.windowLabel === 'string' ? raw.windowLabel : 'main',
+    pages,
+    activePageID: typeof raw.activePageID === 'string' ? raw.activePageID : null,
+  };
+};
+
+export const desktopBrowserInit = async (): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_init', undefined, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserSetBounds = async (
+  bounds: DesktopBrowserBounds,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_set_bounds', {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    ...(typeof bounds.visible === 'boolean' ? { visible: bounds.visible } : {}),
+  }, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserNavigate = async (
+  app: any,
+  url: string,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_navigate', { url }, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserBack = async (
+  app?: any,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_back', undefined, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserForward = async (
+  app?: any,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_forward', undefined, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserReload = async (
+  app?: any,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_reload', undefined, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserStop = async (
+  app?: any,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_stop', undefined, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserNewPage = async (
+  app: any,
+  url?: string,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_new_page', {
+    ...(typeof url === 'string' && url.trim().length > 0 ? { url } : {}),
+  }, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserSelectPage = async (
+  app: any,
+  pageIdx: number,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_select_page', {
+    pageIdx: Math.max(0, Math.floor(pageIdx)),
+  }, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserClosePage = async (
+  app: any,
+  pageIdx?: number,
+): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_close_page', {
+    ...(typeof pageIdx === 'number' && Number.isFinite(pageIdx)
+      ? { pageIdx: Math.max(0, Math.floor(pageIdx)) }
+      : {}),
+  }, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export const desktopBrowserState = async (): Promise<DesktopBrowserState | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_state', undefined, 'browser');
+  return normalizeDesktopBrowserState(result);
+};
+
+export type DesktopBrowserSelection = {
+  text: string;
+  url: string;
+  title: string;
+  timestamp: number;
+};
+
+export const desktopBrowserSelectionState = async (): Promise<DesktopBrowserSelection | null> => {
+  const result = await invokeDesktopCommand<unknown>('desktop_browser_selection_state', undefined, 'browser');
+  if (!result || typeof result !== 'object') return null;
+  const raw = result as Record<string, unknown>;
+  return {
+    text: typeof raw.text === 'string' ? raw.text : '',
+    url: typeof raw.url === 'string' ? raw.url : '',
+    title: typeof raw.title === 'string' ? raw.title : '',
+    timestamp: typeof raw.timestamp === 'number' ? raw.timestamp : Date.now(),
+  };
+};
+
+export const isDesktopBrowserCommandReady = (): boolean => {
+  return isTauriShell() && (isDesktopLocalOriginActive() || isDesktopShell());
+};
+
+export const runDesktopCommand = async <T>(
+  run: (app?: any) => Promise<T>,
+  desktopLiveEnabled: boolean,
+  setIsDesktopActionRunning: (val: boolean) => void,
+  setDesktopState: (val: any) => void,
+  setDesktopError: (err: string | null) => void,
+): Promise<T | null> => {
+  if (!desktopLiveEnabled) return null;
+  setIsDesktopActionRunning(true);
+  try {
+    const next = await run();
+    if (next) {
+      setDesktopState(next);
+      setDesktopError(null);
+    }
+    return next;
+  } catch (err) {
+    setDesktopError(err instanceof Error ? err.message : 'Desktop browser command failed');
+    return null;
+  } finally {
+    setIsDesktopActionRunning(false);
   }
 };

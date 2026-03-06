@@ -168,7 +168,7 @@ const cleanBranchName = (branch) => {
   return branch;
 };
 
-const OPENCODE_ADJECTIVES = [
+const KRONOSCODE_ADJECTIVES = [
   'brave',
   'calm',
   'clever',
@@ -200,7 +200,7 @@ const OPENCODE_ADJECTIVES = [
   'witty',
 ];
 
-const OPENCODE_NOUNS = [
+const KRONOSCODE_NOUNS = [
   'cabin',
   'cactus',
   'canyon',
@@ -234,16 +234,16 @@ const OPENCODE_NOUNS = [
   'wolf',
 ];
 
-const OPENCODE_WORKTREE_ATTEMPTS = 26;
+const KRONOSCODE_WORKTREE_ATTEMPTS = 26;
 
-const getOpenCodeDataPath = () => {
+const getKronosCodeDataPath = () => {
   const xdgDataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
-  return path.join(xdgDataHome, 'opencode');
+  return path.join(xdgDataHome, 'kronoscode');
 };
 
 const pickRandom = (values) => values[Math.floor(Math.random() * values.length)];
 
-const generateOpenCodeRandomName = () => `${pickRandom(OPENCODE_ADJECTIVES)}-${pickRandom(OPENCODE_NOUNS)}`;
+const generateKronosCodeRandomName = () => `${pickRandom(KRONOSCODE_ADJECTIVES)}-${pickRandom(KRONOSCODE_NOUNS)}`;
 
 const slugWorktreeName = (value) => {
   return String(value || '')
@@ -422,9 +422,9 @@ const runGitCommandOrThrow = async (cwd, args, fallbackMessage) => {
   return result;
 };
 
-const ensureOpenCodeProjectId = async (primaryWorktree) => {
+const ensureKronosCodeProjectId = async (primaryWorktree) => {
   const gitDir = path.join(primaryWorktree, '.git');
-  const idFile = path.join(gitDir, 'opencode');
+  const idFile = path.join(gitDir, 'kronoscode');
   const existing = await fsp.readFile(idFile, 'utf8').then((value) => value.trim()).catch(() => '');
   if (existing) {
     return existing;
@@ -444,7 +444,7 @@ const ensureOpenCodeProjectId = async (primaryWorktree) => {
 
   const projectId = roots[0] || '';
   if (!projectId) {
-    throw new Error('Failed to derive OpenCode project ID');
+    throw new Error('Failed to derive KronosCode project ID');
   }
 
   await fsp.mkdir(gitDir, { recursive: true }).catch(() => undefined);
@@ -473,8 +473,8 @@ const resolveWorktreeProjectContext = async (directory) => {
   );
   const commonDir = path.resolve(sandbox, commonResult.stdout.trim());
   const primaryWorktree = path.dirname(commonDir);
-  const projectID = await ensureOpenCodeProjectId(primaryWorktree);
-  const worktreeRoot = path.join(getOpenCodeDataPath(), 'worktree', projectID);
+  const projectID = await ensureKronosCodeProjectId(primaryWorktree);
+  const worktreeRoot = path.join(getKronosCodeDataPath(), 'worktree', projectID);
 
   return {
     projectID,
@@ -496,13 +496,13 @@ const listWorktreeEntries = async (directory) => {
 const resolveWorktreeNameCandidates = (baseName) => {
   const normalizedBase = slugWorktreeName(baseName || '');
   if (!normalizedBase) {
-    return Array.from({ length: OPENCODE_WORKTREE_ATTEMPTS }, () => generateOpenCodeRandomName());
+    return Array.from({ length: KRONOSCODE_WORKTREE_ATTEMPTS }, () => generateKronosCodeRandomName());
   }
-  return Array.from({ length: OPENCODE_WORKTREE_ATTEMPTS }, (_, index) => {
+  return Array.from({ length: KRONOSCODE_WORKTREE_ATTEMPTS }, (_, index) => {
     if (index === 0) {
       return normalizedBase;
     }
-    return `${normalizedBase}-${generateOpenCodeRandomName()}`;
+    return `${normalizedBase}-${generateKronosCodeRandomName()}`;
   });
 };
 
@@ -625,7 +625,7 @@ const runWorktreeStartCommand = async (directory, command) => {
 };
 
 const loadProjectStartCommand = async (projectID) => {
-  const storagePath = path.join(getOpenCodeDataPath(), 'storage', 'project', `${projectID}.json`);
+  const storagePath = path.join(getKronosCodeDataPath(), 'storage', 'project', `${projectID}.json`);
   try {
     const raw = await fsp.readFile(storagePath, 'utf8');
     const parsed = JSON.parse(raw);
@@ -637,7 +637,7 @@ const loadProjectStartCommand = async (projectID) => {
 };
 
 const getProjectStoragePath = (projectID) => {
-  return path.join(getOpenCodeDataPath(), 'storage', 'project', `${projectID}.json`);
+  return path.join(getKronosCodeDataPath(), 'storage', 'project', `${projectID}.json`);
 };
 
 const updateProjectSandboxes = async (projectID, primaryWorktree, updater) => {
@@ -2141,7 +2141,7 @@ export async function createWorktree(directory, input = {}) {
   try {
     await syncProjectSandboxAdd(context.projectID, context.primaryWorktree, candidate.directory);
   } catch (error) {
-    console.warn('Failed to sync OpenCode sandbox metadata (add):', error instanceof Error ? error.message : String(error));
+    console.warn('Failed to sync KronosCode sandbox metadata (add):', error instanceof Error ? error.message : String(error));
   }
 
   const shouldSetUpstream = Boolean(input?.setUpstream);
@@ -2212,7 +2212,7 @@ export async function removeWorktree(directory, input = {}) {
     try {
       await syncProjectSandboxRemove(context.projectID, context.primaryWorktree, targetDirectory);
     } catch (error) {
-      console.warn('Failed to sync OpenCode sandbox metadata (remove):', error instanceof Error ? error.message : String(error));
+      console.warn('Failed to sync KronosCode sandbox metadata (remove):', error instanceof Error ? error.message : String(error));
     }
 
     return true;
@@ -2238,7 +2238,7 @@ export async function removeWorktree(directory, input = {}) {
   try {
     await syncProjectSandboxRemove(context.projectID, context.primaryWorktree, matchedEntry.worktree);
   } catch (error) {
-    console.warn('Failed to sync OpenCode sandbox metadata (remove):', error instanceof Error ? error.message : String(error));
+    console.warn('Failed to sync KronosCode sandbox metadata (remove):', error instanceof Error ? error.message : String(error));
   }
 
   return true;

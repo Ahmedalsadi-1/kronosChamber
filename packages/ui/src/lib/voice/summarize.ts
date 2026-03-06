@@ -2,7 +2,7 @@
  * Text summarization utility for TTS
  * 
  * Calls the server-side summarization endpoint which uses
- * the opencode.ai zen API with gpt-5-nano.
+ * the kronoscode.ai zen API with gpt-5-nano.
  */
 
 import { useConfigStore } from '@/stores/useConfigStore';

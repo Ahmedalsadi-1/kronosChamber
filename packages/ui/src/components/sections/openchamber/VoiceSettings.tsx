@@ -32,7 +32,7 @@ const LANGUAGE_OPTIONS = [
 ];
 
 /**
- * Voice settings section for OpenChamber settings
+ * Voice settings section for KronosChamber settings
  * Allows users to configure voice conversation preferences
  */
 export const VoiceSettings: React.FC = () => {
@@ -464,7 +464,7 @@ export const VoiceSettings: React.FC = () => {
                                 </span>
                             </div>
                             <p className="typography-meta text-muted-foreground">
-                                {isOpenAIAvailable && !openaiApiKey ? 'Using API key from OpenCode configuration' : 'Enter your OpenAI API key for voice synthesis'}
+                                {isOpenAIAvailable && !openaiApiKey ? 'Using API key from KronosCode configuration' : 'Enter your OpenAI API key for voice synthesis'}
                             </p>
                         </div>
                         <div className="flex items-center gap-2 w-[280px]">

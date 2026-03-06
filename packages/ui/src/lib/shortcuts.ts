@@ -121,8 +121,8 @@ const SHORTCUT_ACTIONS: ReadonlyArray<ShortcutAction> = [
   {
     id: 'open_status',
     defaultCombo: 'mod+shift+l',
-    label: 'Open OpenCode status',
-    description: 'Open the OpenCode status dialog',
+    label: 'Open KronosCode status',
+    description: 'Open the KronosCode status dialog',
   },
   {
     id: 'open_settings',

@@ -13,8 +13,8 @@ import type {
   SkillsCatalogSourceResponse,
 } from '@/lib/api/types';
 
-import { refreshSkillsAfterOpenCodeRestart, useSkillsStore } from '@/stores/useSkillsStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { refreshSkillsAfterKronosCodeRestart, useSkillsStore } from '@/stores/useSkillsStore';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 
 const FALLBACK_SOURCES: SkillsCatalogSource[] = [
   {
@@ -35,9 +35,9 @@ const FALLBACK_SOURCES: SkillsCatalogSource[] = [
 ];
 
 const getCurrentDirectory = (): string | null => {
-  const opencodeDirectory = opencodeClient.getDirectory();
-  if (typeof opencodeDirectory === 'string' && opencodeDirectory.trim().length > 0) {
-    return opencodeDirectory;
+  const kronoscodeDirectory = kronoscodeClient.getDirectory();
+  if (typeof kronoscodeDirectory === 'string' && kronoscodeDirectory.trim().length > 0) {
+    return kronoscodeDirectory;
   }
 
   try {
@@ -374,7 +374,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           }
 
           if (payload.requiresReload) {
-            await refreshSkillsAfterOpenCodeRestart({
+            await refreshSkillsAfterKronosCodeRestart({
               message: payload.message,
               delayMs: payload.reloadDelayMs,
             });

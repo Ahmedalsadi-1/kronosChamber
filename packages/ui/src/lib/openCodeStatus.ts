@@ -10,21 +10,21 @@ type ProbeResult = {
   summary: string;
 };
 
-type OpenChamberHealthSnapshot = {
+type KronosChamberHealthSnapshot = {
   openCodePort?: unknown;
   openCodeRunning?: unknown;
   openCodeSecureConnection?: unknown;
   openCodeAuthSource?: unknown;
-  isOpenCodeReady?: unknown;
-  lastOpenCodeError?: unknown;
-  opencodeBinaryResolved?: unknown;
-  opencodeBinarySource?: unknown;
-  opencodeShimInterpreter?: unknown;
+  isKronosCodeReady?: unknown;
+  lastKronosCodeError?: unknown;
+  kronoscodeBinaryResolved?: unknown;
+  kronoscodeBinarySource?: unknown;
+  kronoscodeShimInterpreter?: unknown;
   nodeBinaryResolved?: unknown;
   bunBinaryResolved?: unknown;
 };
 
-type OpenChamberOpencodeResolution = {
+type KronosChamberOpencodeResolution = {
   configured?: unknown;
   resolved?: unknown;
   resolvedDir?: unknown;
@@ -115,7 +115,7 @@ const normalizePort = (value: unknown): number | null => {
   return null;
 };
 
-export const buildOpenCodeStatusReport = async (): Promise<string> => {
+export const buildKronosCodeStatusReport = async (): Promise<string> => {
   const now = new Date();
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '(unknown)';
   const platform = typeof navigator !== 'undefined' ? navigator.userAgent : '(no navigator)';
@@ -124,7 +124,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const apiBase = origin ? `${origin.replace(/\/+$/, '')}/api/` : '';
 
-  const openChamberHealth: OpenChamberHealthSnapshot | null = await (async () => {
+  const openChamberHealth: KronosChamberHealthSnapshot | null = await (async () => {
     if (!origin) return null;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -137,7 +137,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
       if (!resp.ok) return null;
       const json = (await resp.json().catch(() => null)) as unknown;
       if (!json || typeof json !== 'object' || Array.isArray(json)) return null;
-      return json as OpenChamberHealthSnapshot;
+      return json as KronosChamberHealthSnapshot;
     } catch {
       return null;
     } finally {
@@ -146,7 +146,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
   })();
 
   const openChamberOpencodeResolutionResult: {
-    data: OpenChamberOpencodeResolution | null;
+    data: KronosChamberOpencodeResolution | null;
     status: number | null;
     error: string | null;
   } = await (async () => {
@@ -154,7 +154,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 7000);
     try {
-      const resp = await fetch(`${origin.replace(/\/+$/, '')}/api/config/opencode-resolution`, {
+      const resp = await fetch(`${origin.replace(/\/+$/, '')}/api/config/kronoscode-resolution`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         signal: controller.signal,
@@ -178,7 +178,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
       if (!json || typeof json !== 'object' || Array.isArray(json)) {
         return { data: null, status: resp.status, error: `invalid json-shape content-type=${contentType}` };
       }
-      return { data: json as OpenChamberOpencodeResolution, status: resp.status, error: null };
+      return { data: json as KronosChamberOpencodeResolution, status: resp.status, error: null };
     } catch (error) {
       return {
         data: null,
@@ -224,26 +224,26 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
 
   const lines: string[] = [];
   lines.push(`Time: ${now.toISOString()}`);
-  lines.push(`OpenChamber version: ${appVersion}`);
+  lines.push(`KronosChamber version: ${appVersion}`);
   lines.push(`Runtime: ${origin || '(unknown)'} (api=${origin ? origin + '/api' : '(unknown)'})`);
   lines.push(`Event stream: ${eventStreamStatus}`);
   lines.push(`Directory: ${directory || '(none)'}`);
   lines.push(`Platform: ${platform}`);
 
-  const runtimeOpenCodePort = normalizePort(openChamberHealth?.openCodePort);
-  lines.push(`OpenCode runtime port: ${runtimeOpenCodePort ?? '(unknown)'}`);
+  const runtimeKronosCodePort = normalizePort(openChamberHealth?.openCodePort);
+  lines.push(`KronosCode runtime port: ${runtimeKronosCodePort ?? '(unknown)'}`);
   if (typeof openChamberHealth?.openCodeRunning === 'boolean') {
-    lines.push(`OpenCode runtime running: ${openChamberHealth.openCodeRunning ? 'yes' : 'no'}`);
+    lines.push(`KronosCode runtime running: ${openChamberHealth.openCodeRunning ? 'yes' : 'no'}`);
   }
   if (typeof openChamberHealth?.openCodeSecureConnection === 'boolean') {
-    lines.push(`Secure OpenCode connection: ${openChamberHealth.openCodeSecureConnection ? 'true' : 'false'}`);
+    lines.push(`Secure KronosCode connection: ${openChamberHealth.openCodeSecureConnection ? 'true' : 'false'}`);
   }
   if (typeof openChamberHealth?.openCodeAuthSource === 'string' && openChamberHealth.openCodeAuthSource.trim()) {
-    lines.push(`OpenCode auth source: ${openChamberHealth.openCodeAuthSource}`);
+    lines.push(`KronosCode auth source: ${openChamberHealth.openCodeAuthSource}`);
   }
 
   if (typeof window !== 'undefined') {
-    const injected = (window as unknown as { __OPENCHAMBER_MACOS_MAJOR__?: unknown }).__OPENCHAMBER_MACOS_MAJOR__;
+    const injected = (window as unknown as { __KRONOSCHAMBER_MACOS_MAJOR__?: unknown }).__KRONOSCHAMBER_MACOS_MAJOR__;
     if (typeof injected === 'number' && Number.isFinite(injected) && injected > 0) {
       lines.push(`macOS major: ${injected}`);
     }
@@ -252,7 +252,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
   const isLikelyMac = /Mac OS X|Macintosh/.test(platform);
   if (isLikelyMac) {
     lines.push('');
-    lines.push('OpenCode CLI resolution:');
+    lines.push('KronosCode CLI resolution:');
 
     const openChamberOpencodeResolution = openChamberOpencodeResolutionResult.data;
     const configured =
@@ -262,7 +262,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
     const resolved =
       openChamberOpencodeResolution && typeof openChamberOpencodeResolution.resolved === 'string'
         ? openChamberOpencodeResolution.resolved
-        : (openChamberHealth && typeof openChamberHealth.opencodeBinaryResolved === 'string' ? openChamberHealth.opencodeBinaryResolved : '');
+        : (openChamberHealth && typeof openChamberHealth.kronoscodeBinaryResolved === 'string' ? openChamberHealth.kronoscodeBinaryResolved : '');
     const resolvedDir =
       openChamberOpencodeResolution && typeof openChamberOpencodeResolution.resolvedDir === 'string'
         ? openChamberOpencodeResolution.resolvedDir
@@ -270,11 +270,11 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
     const source =
       openChamberOpencodeResolution && typeof openChamberOpencodeResolution.source === 'string'
         ? openChamberOpencodeResolution.source
-        : (openChamberHealth && typeof openChamberHealth.opencodeBinarySource === 'string' ? openChamberHealth.opencodeBinarySource : '');
+        : (openChamberHealth && typeof openChamberHealth.kronoscodeBinarySource === 'string' ? openChamberHealth.kronoscodeBinarySource : '');
     const shim =
       openChamberOpencodeResolution && typeof openChamberOpencodeResolution.shim === 'string'
         ? openChamberOpencodeResolution.shim
-        : (openChamberHealth && typeof openChamberHealth.opencodeShimInterpreter === 'string' ? openChamberHealth.opencodeShimInterpreter : '');
+        : (openChamberHealth && typeof openChamberHealth.kronoscodeShimInterpreter === 'string' ? openChamberHealth.kronoscodeShimInterpreter : '');
     const node =
       openChamberOpencodeResolution && typeof openChamberOpencodeResolution.node === 'string'
         ? openChamberOpencodeResolution.node
@@ -298,9 +298,9 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
 
     if (resolved) {
       const dir = resolvedDir || (resolved.includes('/') ? resolved.split('/').slice(0, -1).join('/') || '/' : '');
-      lines.push(`- opencode: ${resolved}${dir ? ` (dir=${dir})` : ''}`);
+      lines.push(`- kronoscode: ${resolved}${dir ? ` (dir=${dir})` : ''}`);
     } else {
-      lines.push('- opencode: (n/a)');
+      lines.push('- kronoscode: (n/a)');
     }
 
     lines.push(`- source: ${source || '(n/a)'}`);
@@ -318,7 +318,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
 
   lines.push('');
   if (probes.length) {
-    lines.push('OpenCode API probes:');
+    lines.push('KronosCode API probes:');
     for (const probe of probes) {
       if (!probe.result) {
         lines.push(`- ${probe.label}: (no url)`);
@@ -329,7 +329,7 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
       lines.push(`- ${probe.label}: ${ok ? 'ok' : 'fail'} status=${status} time=${elapsedMs}ms ${summary}${suffix}`);
     }
   } else {
-    lines.push('OpenCode API probes: (skipped)');
+    lines.push('KronosCode API probes: (skipped)');
   }
 
   lines.push('');
@@ -337,9 +337,9 @@ export const buildOpenCodeStatusReport = async (): Promise<string> => {
   return lines.join('\n');
 };
 
-export const showOpenCodeStatus = async (): Promise<void> => {
-  const text = await buildOpenCodeStatusReport();
+export const showKronosCodeStatus = async (): Promise<void> => {
+  const text = await buildKronosCodeStatusReport();
   const ui = useUIStore.getState();
-  ui.setOpenCodeStatusText(text);
-  ui.setOpenCodeStatusDialogOpen(true);
+  ui.setKronosCodeStatusText(text);
+  ui.setKronosCodeStatusDialogOpen(true);
 };

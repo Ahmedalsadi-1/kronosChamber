@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
-import type { Session } from "@opencode-ai/sdk/v2";
-import { opencodeClient } from "@/lib/opencode/client";
+import type { Session } from "@kronoscode-ai/sdk/v2";
+import { kronoscodeClient } from "@/lib/kronoscode/client";
 import { getSafeStorage } from "./utils/safeStorage";
 import type { WorktreeMetadata } from "@/types/worktree";
 import { getWorktreeStatus } from "@/lib/worktrees/worktreeStatus";
@@ -12,6 +12,7 @@ import { triggerSessionStatusPoll } from "@/hooks/useServerSessionStatus";
 import type { ProjectEntry } from "@/lib/api/types";
 import { checkIsGitRepository } from "@/lib/gitApi";
 import { streamDebugEnabled } from "@/stores/utils/streamDebug";
+import { getIdentityHeaders } from "@/lib/clientIdentity";
 
 interface SessionState {
     sessions: Session[];
@@ -39,9 +40,9 @@ interface SessionActions {
     getSessionsByDirectory: (directory: string) => Session[];
     getDirectoryForSession: (sessionId: string) => string | null;
     applySessionMetadata: (sessionId: string, metadata: Partial<Session>) => void;
-    isOpenChamberCreatedSession: (sessionId: string) => boolean;
-    markSessionAsOpenChamberCreated: (sessionId: string) => void;
-    initializeNewOpenChamberSession: (sessionId: string, agents: Record<string, unknown>[]) => void;
+    isKronosChamberCreatedSession: (sessionId: string) => boolean;
+    markSessionAsKronosChamberCreated: (sessionId: string) => void;
+    initializeNewKronosChamberSession: (sessionId: string, agents: Record<string, unknown>[]) => void;
     setWorktreeMetadata: (sessionId: string, metadata: WorktreeMetadata | null) => void;
     getWorktreeMetadata: (sessionId: string) => WorktreeMetadata | undefined;
     setSessionDirectory: (sessionId: string, directory: string | null) => void;
@@ -157,7 +158,7 @@ const archiveSessionWorktree = async (
 };
 
 const deleteSessionOnServer = async (sessionId: string, directory?: string | null): Promise<boolean> => {
-    const apiClient = opencodeClient.getApiClient();
+    const apiClient = kronoscodeClient.getApiClient();
     const normalizedDirectory = normalizePath(directory ?? null);
     const response = await apiClient.session.delete({
         sessionID: sessionId,
@@ -192,15 +193,15 @@ const readVSCodeWorkspaceDirectory = (): string | null => {
 
 const isVSCodeRuntime = (): boolean => {
     if (typeof window === "undefined") return false;
-    const runtime = (window as unknown as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } })
-        .__OPENCHAMBER_RUNTIME_APIS__?.runtime;
+    const runtime = (window as unknown as { __KRONOSCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } })
+        .__KRONOSCHAMBER_RUNTIME_APIS__?.runtime;
     return Boolean(runtime?.isVSCode);
 };
 
 const vscodeDebugLog = (...args: unknown[]) => {
     if (!streamDebugEnabled()) return;
     if (!isVSCodeRuntime()) return;
-    console.log("[OpenChamber][VSCode][sessions]", ...args);
+    console.log("[KronosChamber][VSCode][sessions]", ...args);
 };
 
 const dedupeSessionsById = (sessions: Session[]): Session[] => {
@@ -381,14 +382,14 @@ export const useSessionStore = create<SessionStore>()(
                     try {
                         const directoryStore = useDirectoryStore.getState();
                         const projectsStore = useProjectsStore.getState();
-                        const apiClient = opencodeClient.getApiClient();
+                        const apiClient = kronoscodeClient.getApiClient();
                         const vscodeWorkspaceDirectory = readVSCodeWorkspaceDirectory();
                         const includeDescendants = Boolean(vscodeWorkspaceDirectory);
 
                         vscodeDebugLog("loadSessions:start", {
                             workspace: vscodeWorkspaceDirectory,
                             currentDirectory: directoryStore.currentDirectory,
-                            clientDirectory: opencodeClient.getDirectory(),
+                            clientDirectory: kronoscodeClient.getDirectory(),
                             projectsCount: projectsStore.projects.length,
                             activeProjectId: projectsStore.activeProjectId,
                         });
@@ -538,7 +539,7 @@ export const useSessionStore = create<SessionStore>()(
                             return assignRequestedDirectory(filtered, requestedDirectory, canonicalDirectory);
                         };
 
-                        const normalizedFallback = normalizePath(directoryStore.currentDirectory ?? opencodeClient.getDirectory() ?? null);
+                        const normalizedFallback = normalizePath(directoryStore.currentDirectory ?? kronoscodeClient.getDirectory() ?? null);
                         const activeProject = projectsStore.projects.find((project) => project.id === projectsStore.activeProjectId) ?? null;
                         const activeProjectRoot = normalizePath(activeProject?.path ?? null);
 
@@ -745,9 +746,9 @@ export const useSessionStore = create<SessionStore>()(
                         })();
 
                         try {
-                            opencodeClient.setDirectory(resolvedDirectoryForCurrent ?? undefined);
+                            kronoscodeClient.setDirectory(resolvedDirectoryForCurrent ?? undefined);
                         } catch (error) {
-                            console.warn("Failed to sync OpenCode directory after session load:", error);
+                            console.warn("Failed to sync KronosCode directory after session load:", error);
                         }
 
                         const activeWorktrees = activeProjectRoot
@@ -784,7 +785,7 @@ export const useSessionStore = create<SessionStore>()(
                     const directoryStore = useDirectoryStore.getState();
                     const fallbackDirectory = normalizePath(directoryStore.currentDirectory);
                     const vscodeWorkspaceDirectory = readVSCodeWorkspaceDirectory();
-                    const targetDirectory = vscodeWorkspaceDirectory ?? normalizePath(directoryOverride ?? opencodeClient.getDirectory() ?? fallbackDirectory);
+                    const targetDirectory = vscodeWorkspaceDirectory ?? normalizePath(directoryOverride ?? kronoscodeClient.getDirectory() ?? fallbackDirectory);
                     vscodeDebugLog("createSession:start", { title, parentID, targetDirectory, vscodeWorkspaceDirectory });
 
                     const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -824,9 +825,9 @@ export const useSessionStore = create<SessionStore>()(
 
                     if (targetDirectory) {
                         try {
-                            opencodeClient.setDirectory(targetDirectory);
+                            kronoscodeClient.setDirectory(targetDirectory);
                         } catch (error) {
-                            console.warn("Failed to sync OpenCode directory after session creation:", error);
+                            console.warn("Failed to sync KronosCode directory after session creation:", error);
                         }
                     }
 
@@ -859,7 +860,7 @@ export const useSessionStore = create<SessionStore>()(
                     };
 
                     const pollForSession = async (): Promise<Session | null> => {
-                        const apiClient = opencodeClient.getApiClient();
+                        const apiClient = kronoscodeClient.getApiClient();
                         const attempts = 20;
                         for (let attempt = 0; attempt < attempts; attempt += 1) {
                             try {
@@ -884,12 +885,12 @@ export const useSessionStore = create<SessionStore>()(
                     };
 
                     try {
-                        const createRequest = () => opencodeClient.createSession({ title, parentID: parentID ?? undefined });
+                        const createRequest = () => kronoscodeClient.createSession({ title, parentID: parentID ?? undefined });
                         let session: Session | null = null;
 
                         try {
                             session = targetDirectory
-                                ? await opencodeClient.withDirectory(targetDirectory, createRequest)
+                                ? await kronoscodeClient.withDirectory(targetDirectory, createRequest)
                                 : await createRequest();
                         } catch (creationError) {
                             console.warn("Direct session create failed or timed out, falling back to polling:", creationError);
@@ -937,7 +938,7 @@ export const useSessionStore = create<SessionStore>()(
                     const sessionDirectory = getSessionDirectory(get().sessions, id);
                     const requestDirectory = normalizePath(metadataProjectDirectory)
                         ?? normalizePath(sessionDirectory)
-                        ?? normalizePath(opencodeClient.getDirectory() ?? null)
+                        ?? normalizePath(kronoscodeClient.getDirectory() ?? null)
                         ?? null;
 
                     let archiveSucceeded = false;
@@ -996,7 +997,7 @@ export const useSessionStore = create<SessionStore>()(
                         });
 
                         const directoryToStore = normalizePath(sessionDirectory)
-                            ?? normalizePath(opencodeClient.getDirectory() ?? null)
+                            ?? normalizePath(kronoscodeClient.getDirectory() ?? null)
                             ?? null;
                         storeSessionForDirectory(directoryToStore, nextCurrentId);
 
@@ -1035,7 +1036,7 @@ export const useSessionStore = create<SessionStore>()(
                             const sessionDirectory = getSessionDirectory(get().sessions, id);
                             const requestDirectory = normalizePath(metadata?.projectDirectory ?? null)
                                 ?? normalizePath(sessionDirectory)
-                                ?? normalizePath(opencodeClient.getDirectory() ?? null)
+                                ?? normalizePath(kronoscodeClient.getDirectory() ?? null)
                                 ?? null;
 
                             if (metadata && options?.archiveWorktree) {
@@ -1147,7 +1148,7 @@ export const useSessionStore = create<SessionStore>()(
                         };
                     });
 
-                    const directory = opencodeClient.getDirectory() ?? null;
+                    const directory = kronoscodeClient.getDirectory() ?? null;
                     storeSessionForDirectory(directory, nextCurrentId);
 
                     return { deletedIds, failedIds };
@@ -1157,10 +1158,10 @@ export const useSessionStore = create<SessionStore>()(
                     try {
                         const sessionDirectory = getSessionDirectory(get().sessions, id);
                         const metadata = get().worktreeMetadata.get(id);
-                        const updateRequest = () => opencodeClient.updateSession(id, title);
+                        const updateRequest = () => kronoscodeClient.updateSession(id, title);
                         const overrideDirectory = metadata?.path ?? sessionDirectory;
                         const updatedSession = overrideDirectory
-                            ? await opencodeClient.withDirectory(overrideDirectory, updateRequest)
+                            ? await kronoscodeClient.withDirectory(overrideDirectory, updateRequest)
                             : await updateRequest();
                         set((state) => {
                             const sessions = state.sessions.map((s) => (s.id === id ? updatedSession : s));
@@ -1176,18 +1177,18 @@ export const useSessionStore = create<SessionStore>()(
                 shareSession: async (id: string) => {
                     try {
                         const sessionDirectory = getSessionDirectory(get().sessions, id);
-                        const apiClient = opencodeClient.getApiClient();
+                        const apiClient = kronoscodeClient.getApiClient();
                         const metadata = get().worktreeMetadata.get(id);
                         const overrideDirectory = metadata?.path ?? sessionDirectory;
                         const shareRequest = async () => {
-                            const directory = sessionDirectory ?? opencodeClient.getDirectory();
+                            const directory = sessionDirectory ?? kronoscodeClient.getDirectory();
                             return apiClient.session.share({
                                 sessionID: id,
                                 ...(directory ? { directory } : {})
                             });
                         };
                         const response = overrideDirectory
-                            ? await opencodeClient.withDirectory(overrideDirectory, shareRequest)
+                            ? await kronoscodeClient.withDirectory(overrideDirectory, shareRequest)
                             : await shareRequest();
 
                         if (response.data) {
@@ -1209,18 +1210,18 @@ export const useSessionStore = create<SessionStore>()(
                 unshareSession: async (id: string) => {
                     try {
                         const sessionDirectory = getSessionDirectory(get().sessions, id);
-                        const apiClient = opencodeClient.getApiClient();
+                        const apiClient = kronoscodeClient.getApiClient();
                         const metadata = get().worktreeMetadata.get(id);
                         const overrideDirectory = metadata?.path ?? sessionDirectory;
                         const unshareRequest = async () => {
-                            const directory = sessionDirectory ?? opencodeClient.getDirectory();
+                            const directory = sessionDirectory ?? kronoscodeClient.getDirectory();
                             return apiClient.session.unshare({
                                 sessionID: id,
                                 ...(directory ? { directory } : {})
                             });
                         };
                         const response = overrideDirectory
-                            ? await opencodeClient.withDirectory(overrideDirectory, unshareRequest)
+                            ? await kronoscodeClient.withDirectory(overrideDirectory, unshareRequest)
                             : await unshareRequest();
 
                         if (response.data) {
@@ -1247,12 +1248,18 @@ export const useSessionStore = create<SessionStore>()(
                     // This enables server-side needs_attention tracking
                     if (prevSessionId && prevSessionId !== id) {
                         // Leaving previous session
-                        fetch(`/api/sessions/${prevSessionId}/unview`, { method: 'POST' })
+                        fetch(`/api/sessions/${prevSessionId}/unview`, {
+                            method: 'POST',
+                            headers: getIdentityHeaders(),
+                        })
                             .catch(() => { /* ignore */ });
                     }
                     if (id) {
                         // Entering new session
-                        fetch(`/api/sessions/${id}/view`, { method: 'POST' })
+                        fetch(`/api/sessions/${id}/view`, {
+                            method: 'POST',
+                            headers: getIdentityHeaders(),
+                        })
                             .catch(() => { /* ignore */ });
                     }
 
@@ -1260,7 +1267,7 @@ export const useSessionStore = create<SessionStore>()(
                     // This prevents stale state when switching sessions
                     triggerSessionStatusPoll();
 
-                    const directory = opencodeClient.getDirectory() ?? null;
+                    const directory = kronoscodeClient.getDirectory() ?? null;
                     storeSessionForDirectory(directory, id);
                 },
 
@@ -1350,25 +1357,25 @@ export const useSessionStore = create<SessionStore>()(
                     });
                 },
 
-                isOpenChamberCreatedSession: (sessionId: string) => {
+                isKronosChamberCreatedSession: (sessionId: string) => {
                     const { webUICreatedSessions } = get();
                     return webUICreatedSessions.has(sessionId);
                 },
 
-                markSessionAsOpenChamberCreated: (sessionId: string) => {
+                markSessionAsKronosChamberCreated: (sessionId: string) => {
                     set((state) => {
-                        const newOpenChamberCreatedSessions = new Set(state.webUICreatedSessions);
-                        newOpenChamberCreatedSessions.add(sessionId);
+                        const newKronosChamberCreatedSessions = new Set(state.webUICreatedSessions);
+                        newKronosChamberCreatedSessions.add(sessionId);
                         return {
-                            webUICreatedSessions: newOpenChamberCreatedSessions,
+                            webUICreatedSessions: newKronosChamberCreatedSessions,
                         };
                     });
                 },
 
-                initializeNewOpenChamberSession: (sessionId: string) => {
-                    const { markSessionAsOpenChamberCreated } = get();
+                initializeNewKronosChamberSession: (sessionId: string) => {
+                    const { markSessionAsKronosChamberCreated } = get();
 
-                    markSessionAsOpenChamberCreated(sessionId);
+                    markSessionAsKronosChamberCreated(sessionId);
 
                 },
 

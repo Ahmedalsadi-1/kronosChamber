@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist, createJSONStorage } from "zustand/middleware";
-import { opencodeClient } from "@/lib/opencode/client";
+import { kronoscodeClient } from "@/lib/kronoscode/client";
 import {
   startConfigUpdate,
   finishConfigUpdate,
@@ -28,7 +28,7 @@ export interface Command extends CommandConfig {
   isBuiltIn?: boolean;
 }
 
-// Built-in commands provided by OpenCode (not defined in user config directories)
+// Built-in commands provided by KronosCode (not defined in user config directories)
 const BUILTIN_COMMAND_NAMES = new Set(['init', 'review']);
 
 export const isCommandBuiltIn = (command: Command): boolean => {
@@ -48,8 +48,8 @@ const getRequestDirectory = (): string | null => {
       return activeProject.path.trim();
     }
 
-    // 2. Fallback: current OpenCode directory (session / runtime)
-    const clientDir = opencodeClient.getDirectory();
+    // 2. Fallback: current KronosCode directory (session / runtime)
+    const clientDir = kronoscodeClient.getDirectory();
     if (clientDir?.trim()) {
       return clientDir.trim();
     }
@@ -128,9 +128,9 @@ export const useCommandsStore = create<CommandsStore>()(
               const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : '';
               
               // Ensure the list is scoped to the same directory we use for config source detection.
-              const commands = await opencodeClient.withDirectory(
+              const commands = await kronoscodeClient.withDirectory(
                 directory,
-                () => opencodeClient.listCommandsWithDetails()
+                () => kronoscodeClient.listCommandsWithDetails()
               );
               
               const commandsWithScope = await Promise.all(
@@ -140,7 +140,7 @@ export const useCommandsStore = create<CommandsStore>()(
                     const response = await fetch(`/api/config/commands/${encodeURIComponent(cmd.name)}${queryParams}`, {
                       headers: {
                         'Cache-Control': 'no-cache',
-                        ...(directory ? { 'x-opencode-directory': directory } : {}),
+                        ...(directory ? { 'x-kronoscode-directory': directory } : {}),
                       }
                     });
                     
@@ -216,7 +216,7 @@ export const useCommandsStore = create<CommandsStore>()(
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                ...(directory ? { 'x-opencode-directory': directory } : {}),
+                ...(directory ? { 'x-kronoscode-directory': directory } : {}),
               },
               body: JSON.stringify(commandConfig)
             });
@@ -278,7 +278,7 @@ export const useCommandsStore = create<CommandsStore>()(
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
-                ...(directory ? { 'x-opencode-directory': directory } : {}),
+                ...(directory ? { 'x-kronoscode-directory': directory } : {}),
               },
               body: JSON.stringify(commandConfig)
             });
@@ -326,7 +326,7 @@ export const useCommandsStore = create<CommandsStore>()(
 
             const response = await fetch(`/api/config/commands/${encodeURIComponent(name)}${queryParams}`, {
               method: 'DELETE',
-              headers: directory ? { 'x-opencode-directory': directory } : undefined,
+              headers: directory ? { 'x-kronoscode-directory': directory } : undefined,
             });
 
             const payload = await response.json().catch(() => null);
@@ -390,7 +390,7 @@ if (typeof window !== "undefined") {
   window.__zustand_commands_store__ = useCommandsStore;
 }
 
-async function waitForOpenCodeConnection(delayMs?: number) {
+async function waitForKronosCodeConnection(delayMs?: number) {
   const initialPause = typeof delayMs === "number" && delayMs > 0
     ? Math.min(delayMs, FAST_HEALTH_POLL_INTERVAL_MS)
     : 0;
@@ -405,14 +405,14 @@ async function waitForOpenCodeConnection(delayMs?: number) {
 
   while (Date.now() - start < MAX_HEALTH_WAIT_MS) {
     attempt += 1;
-    updateConfigUpdateMessage(`Waiting for OpenCode… (attempt ${attempt})`);
+    updateConfigUpdateMessage(`Waiting for KronosCode… (attempt ${attempt})`);
 
     try {
-      const isHealthy = await opencodeClient.checkHealth();
+      const isHealthy = await kronoscodeClient.checkHealth();
       if (isHealthy) {
         return;
       }
-      lastError = new Error("OpenCode health check reported not ready");
+      lastError = new Error("KronosCode health check reported not ready");
     } catch (error) {
       lastError = error;
     }
@@ -431,7 +431,7 @@ async function waitForOpenCodeConnection(delayMs?: number) {
     await sleep(waitMs);
   }
 
-  throw lastError || new Error("OpenCode did not become ready in time");
+  throw lastError || new Error("KronosCode did not become ready in time");
 }
 
 async function performFullConfigRefresh(options: { message?: string; delayMs?: number } = {}) {
@@ -444,7 +444,7 @@ async function performFullConfigRefresh(options: { message?: string; delayMs?: n
   }
 
   try {
-    await waitForOpenCodeConnection(delayMs);
+    await waitForKronosCodeConnection(delayMs);
     updateConfigUpdateMessage("Refreshing commands…");
 
     const commandsStore = useCommandsStore.getState();
@@ -453,16 +453,16 @@ async function performFullConfigRefresh(options: { message?: string; delayMs?: n
 
     emitConfigChange("commands", { source: CONFIG_EVENT_SOURCE });
   } catch (error) {
-    console.error("[CommandsStore] Failed to refresh configuration after OpenCode restart:", error);
-    updateConfigUpdateMessage("OpenCode refresh failed. Please retry refreshing configuration manually.");
+    console.error("[CommandsStore] Failed to refresh configuration after KronosCode restart:", error);
+    updateConfigUpdateMessage("KronosCode refresh failed. Please retry refreshing configuration manually.");
     await sleep(1500);
   } finally {
     finishConfigUpdate();
   }
 }
 
-export async function reloadOpenCodeConfiguration(options?: { message?: string; delayMs?: number }) {
-  startConfigUpdate(options?.message || "Reloading OpenCode configuration…");
+export async function reloadKronosCodeConfiguration(options?: { message?: string; delayMs?: number }) {
+  startConfigUpdate(options?.message || "Reloading KronosCode configuration…");
 
   try {
     const response = await fetch('/api/config/reload', {
@@ -486,7 +486,7 @@ export async function reloadOpenCodeConfiguration(options?: { message?: string; 
       await performFullConfigRefresh(options);
     }
   } catch (error) {
-    console.error('[reloadOpenCodeConfiguration] Failed:', error);
+    console.error('[reloadKronosCodeConfiguration] Failed:', error);
     updateConfigUpdateMessage('Failed to reload configuration. Please try again.');
     await sleep(2000);
     finishConfigUpdate();

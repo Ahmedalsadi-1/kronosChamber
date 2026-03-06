@@ -8,7 +8,7 @@ import { sessionEvents } from '@/lib/sessionEvents';
 import { isTauriShell } from '@/lib/desktop';
 import { useFileSystemAccess } from '@/hooks/useFileSystemAccess';
 import { createWorktreeSession } from '@/lib/worktreeSessionCreator';
-import { showOpenCodeStatus } from '@/lib/openCodeStatus';
+import { showKronosCodeStatus } from '@/lib/openCodeStatus';
 
 const MENU_ACTION_EVENT = 'openchamber:menu-action';
 const CHECK_FOR_UPDATES_EVENT = 'openchamber:check-for-updates';
@@ -187,8 +187,8 @@ export const useMenuActions = (
           break;
 
         case 'download-logs': {
-          void showOpenCodeStatus().catch(() => {
-            toast.error('Failed to collect OpenCode status');
+          void showKronosCodeStatus().catch(() => {
+            toast.error('Failed to collect KronosCode status');
           });
           break;
         }

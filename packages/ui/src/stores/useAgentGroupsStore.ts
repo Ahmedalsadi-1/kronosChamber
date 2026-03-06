@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { listProjectWorktrees } from '@/lib/worktrees/worktreeManager';
 import { useDirectoryStore } from './useDirectoryStore';
 import { useProjectsStore } from './useProjectsStore';
 import { useSessionStore } from './useSessionStore';
 import type { WorktreeMetadata } from '@/types/worktree';
-import type { Session } from '@opencode-ai/sdk/v2';
+import type { Session } from '@kronoscode-ai/sdk/v2';
 
 
 const resolveProjectDirectory = (currentDirectory: string | null | undefined): string | null => {
@@ -24,17 +24,17 @@ const resolveProjectDirectory = (currentDirectory: string | null | undefined): s
 };
 
 /**
- * Agent group session parsed from OpenCode session titles.
+ * Agent group session parsed from KronosCode session titles.
  * Session titles follow pattern: `groupSlug/provider/model` or `groupSlug/provider/model/index`
  * Model can contain `/` for creator/model format (e.g., `anthropic/claude-opus-4-5`)
  *
  * Examples:
- * - `feature/opencode/claude-sonnet-4-5` → group="feature", provider="opencode", model="claude-sonnet-4-5"
- * - `feature/opencode/claude-sonnet-4-1/2` → group="feature", provider="opencode", model="claude-sonnet-4-1", index=2
+ * - `feature/kronoscode/claude-sonnet-4-5` → group="feature", provider="kronoscode", model="claude-sonnet-4-5"
+ * - `feature/kronoscode/claude-sonnet-4-1/2` → group="feature", provider="kronoscode", model="claude-sonnet-4-1", index=2
  * - `feature/openrouter/anthropic/claude-opus-4-5` → group="feature", provider="openrouter", model="anthropic/claude-opus-4-5"
  */
 export interface AgentGroupSession {
-  /** OpenCode session ID */
+  /** KronosCode session ID */
   id: string;
   /** Full worktree path (from session.directory) */
   path: string;
@@ -77,7 +77,7 @@ interface AgentGroupsState {
 }
 
 interface AgentGroupsActions {
-  /** Load/refresh agent groups from OpenCode sessions */
+  /** Load/refresh agent groups from KronosCode sessions */
   loadGroups: () => Promise<void>;
   /** Select a group */
   selectGroup: (groupName: string | null) => void;
@@ -121,7 +121,7 @@ const startsWithDirectory = (candidate: string, root: string): boolean => {
 };
 
 const resolveCanonicalDirectory = async (
-  apiClient: ReturnType<typeof opencodeClient.getApiClient>,
+  apiClient: ReturnType<typeof kronoscodeClient.getApiClient>,
   directory: string
 ): Promise<string> => {
   const normalized = normalize(directory);
@@ -138,7 +138,7 @@ const resolveCanonicalDirectory = async (
 };
 
 const listSessionsForDirectory = async (
-  apiClient: ReturnType<typeof opencodeClient.getApiClient>,
+  apiClient: ReturnType<typeof kronoscodeClient.getApiClient>,
   directory: string
 ): Promise<Session[]> => {
   const normalized = normalize(directory);
@@ -224,7 +224,7 @@ const buildWorktreeMetadataByPath = async (group: AgentGroup, projectDirectory: 
 };
 
 const collectDeleteCandidates = async (params: {
-  apiClient: ReturnType<typeof opencodeClient.getApiClient>;
+  apiClient: ReturnType<typeof kronoscodeClient.getApiClient>;
   group: AgentGroup;
   projectDirectory: string;
   worktreePaths: string[];
@@ -277,7 +277,7 @@ const deleteGroupWorktreeSessions = async (params: {
   projectDirectory: string;
   worktreePaths: string[];
 }) => {
-  const apiClient = opencodeClient.getApiClient();
+  const apiClient = kronoscodeClient.getApiClient();
   const candidates = await collectDeleteCandidates({
     apiClient,
     group: params.group,
@@ -315,8 +315,8 @@ const deleteGroupWorktreeSessions = async (params: {
  * Model can contain `/` for creator/model format.
  *
  * Examples:
- * - "feature/opencode/claude-sonnet-4-5" → { groupSlug: "feature", provider: "opencode", model: "claude-sonnet-4-5", index: 1 }
- * - "feature/opencode/claude-sonnet-4-1/2" → { groupSlug: "feature", provider: "opencode", model: "claude-sonnet-4-1", index: 2 }
+ * - "feature/kronoscode/claude-sonnet-4-5" → { groupSlug: "feature", provider: "kronoscode", model: "claude-sonnet-4-5", index: 1 }
+ * - "feature/kronoscode/claude-sonnet-4-1/2" → { groupSlug: "feature", provider: "kronoscode", model: "claude-sonnet-4-1", index: 2 }
  * - "feature/openrouter/anthropic/claude-opus-4-5" → { groupSlug: "feature", provider: "openrouter", model: "anthropic/claude-opus-4-5", index: 1 }
  * - "my-task/anthropic/claude-sonnet-4/1" → { groupSlug: "my-task", provider: "anthropic", model: "claude-sonnet-4", index: 1 }
  */
@@ -395,7 +395,7 @@ export const useAgentGroupsStore = create<AgentGroupsStore>()(
         set({ isLoading: true, error: null });
 
         try {
-          const apiClient = opencodeClient.getApiClient();
+          const apiClient = kronoscodeClient.getApiClient();
           const canonicalProject = await resolveCanonicalDirectory(apiClient, normalizedProject);
           const canonicalRef = canonicalProject && canonicalProject !== normalizedProject
             ? { ...projectRef, path: canonicalProject }
@@ -470,7 +470,7 @@ export const useAgentGroupsStore = create<AgentGroupsStore>()(
             return worktreeDirectorySet.has(dir);
           });
 
-          // Some OpenCode builds do not return sessions across directories in the global list.
+          // Some KronosCode builds do not return sessions across directories in the global list.
           // If we didn't discover any group sessions, fall back to querying each worktree directory directly.
           if (allSessions.length === 0) {
             const candidates = new Set<string>();

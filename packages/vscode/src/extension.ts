@@ -2,13 +2,13 @@ import * as vscode from 'vscode';
 import { ChatViewProvider } from './ChatViewProvider';
 import { AgentManagerPanelProvider } from './AgentManagerPanelProvider';
 import { SessionEditorPanelProvider } from './SessionEditorPanelProvider';
-import { createOpenCodeManager, type OpenCodeManager } from './opencode';
+import { createKronosCodeManager, type KronosCodeManager } from './kronoscode';
 import { startGlobalEventWatcher, stopGlobalEventWatcher, setChatViewProvider } from './sessionActivityWatcher';
 
 let chatViewProvider: ChatViewProvider | undefined;
 let agentManagerProvider: AgentManagerPanelProvider | undefined;
 let sessionEditorProvider: SessionEditorPanelProvider | undefined;
-let openCodeManager: OpenCodeManager | undefined;
+let openCodeManager: KronosCodeManager | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
 
 let activeSessionId: string | null = null;
@@ -32,7 +32,7 @@ const formatDurationMs = (value: number | null | undefined) => {
 };
 
 export async function activate(context: vscode.ExtensionContext) {
-  outputChannel = vscode.window.createOutputChannel('OpenChamber');
+  outputChannel = vscode.window.createOutputChannel('KronosChamber');
 
   let moveToRightSidebarScheduled = false;
 
@@ -79,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext) {
       return 'moved';
     } catch (error) {
       outputChannel?.appendLine(
-        `[OpenChamber] Failed moving chat view to right sidebar (command=${moveCommandId}): ${error instanceof Error ? error.message : String(error)}`
+        `[KronosChamber] Failed moving chat view to right sidebar (command=${moveCommandId}): ${error instanceof Error ? error.message : String(error)}`
       );
       return 'failed';
     }
@@ -115,11 +115,11 @@ export async function activate(context: vscode.ExtensionContext) {
     await config.update('apiUrl', '', vscode.ConfigurationTarget.Global);
   }
 
-  // Create OpenCode manager first
-  openCodeManager = createOpenCodeManager(context);
+  // Create KronosCode manager first
+  openCodeManager = createKronosCodeManager(context);
 
   // Create chat view provider with manager reference
-  // The webview will show a loading state until OpenCode is ready
+  // The webview will show a loading state until KronosCode is ready
   chatViewProvider = new ChatViewProvider(context, context.extensionUri, openCodeManager);
 
   context.subscriptions.push(
@@ -137,14 +137,14 @@ export async function activate(context: vscode.ExtensionContext) {
       try {
         await vscode.commands.executeCommand('workbench.view.extension.openchamber');
       } catch (e) {
-        outputChannel?.appendLine(`[OpenChamber] workbench.view.extension.openchamber failed: ${e}`);
+        outputChannel?.appendLine(`[KronosChamber] workbench.view.extension.openchamber failed: ${e}`);
       }
 
       try {
         await vscode.commands.executeCommand('openchamber.chatView.focus');
       } catch (e) {
-        outputChannel?.appendLine(`[OpenChamber] openchamber.chatView.focus failed: ${e}`);
-        vscode.window.showErrorMessage(`OpenChamber: Failed to open sidebar - ${e}`);
+        outputChannel?.appendLine(`[KronosChamber] openchamber.chatView.focus failed: ${e}`);
+        vscode.window.showErrorMessage(`KronosChamber: Failed to open sidebar - ${e}`);
       }
     })
   );
@@ -183,7 +183,7 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('openchamber.openActiveSessionInEditor', () => {
       if (!activeSessionId) {
-        vscode.window.showInformationMessage('OpenChamber: No active session');
+        vscode.window.showInformationMessage('KronosChamber: No active session');
         return;
       }
       sessionEditorProvider?.createOrShow(activeSessionId, activeSessionTitle ?? undefined);
@@ -219,9 +219,9 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('openchamber.restartApi', async () => {
       try {
         await openCodeManager?.restart();
-        vscode.window.showInformationMessage('OpenChamber: API connection restarted');
+        vscode.window.showInformationMessage('KronosChamber: API connection restarted');
       } catch (e) {
-        vscode.window.showErrorMessage(`OpenChamber: Failed to restart API - ${e}`);
+        vscode.window.showErrorMessage(`KronosChamber: Failed to restart API - ${e}`);
       }
     })
   );
@@ -230,7 +230,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('openchamber.addToContext', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
-        vscode.window.showWarningMessage('OpenChamber [Add to Context]:No active editor');
+        vscode.window.showWarningMessage('KronosChamber [Add to Context]:No active editor');
         return;
       }
 
@@ -238,7 +238,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const selectedText = editor.document.getText(selection);
 
       if (!selectedText) {
-        vscode.window.showWarningMessage('OpenChamber [Add to Context]: No text selected');
+        vscode.window.showWarningMessage('KronosChamber [Add to Context]: No text selected');
         return;
       }
 
@@ -266,7 +266,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('openchamber.explain', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
-        vscode.window.showWarningMessage('OpenChamber [Explain]: No active editor');
+        vscode.window.showWarningMessage('KronosChamber [Explain]: No active editor');
         return;
       }
 
@@ -298,7 +298,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('openchamber.improveCode', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
-        vscode.window.showWarningMessage('OpenChamber [Improve Code]: No active editor');
+        vscode.window.showWarningMessage('KronosChamber [Improve Code]: No active editor');
         return;
       }
 
@@ -306,7 +306,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const selectedText = editor.document.getText(selection);
 
       if (!selectedText) {
-        vscode.window.showWarningMessage('OpenChamber [Improve Code]: No text selected');
+        vscode.window.showWarningMessage('KronosChamber [Improve Code]: No text selected');
         return;
       }
 
@@ -337,7 +337,7 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('openchamber.showOpenCodeStatus', async () => {
+    vscode.commands.registerCommand('openchamber.showKronosCodeStatus', async () => {
       const config = vscode.workspace.getConfiguration('openchamber');
       const configuredApiUrl = (config.get<string>('apiUrl') || '').trim();
 
@@ -362,7 +362,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
         const startedAt = Date.now();
-        const openCodeAuthHeaders = openCodeManager?.getOpenCodeAuthHeaders() || {};
+        const openCodeAuthHeaders = openCodeManager?.getKronosCodeAuthHeaders() || {};
         try {
           const resp = await fetch(input, {
             method: 'GET',
@@ -447,8 +447,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
       const lines = [
         `Time: ${new Date().toISOString()}`,
-        `OpenChamber version: ${extensionVersion || '(unknown)'}`,
-        `OpenCode Version: ${debug?.version ?? '(unknown)'}`,
+        `KronosChamber version: ${extensionVersion || '(unknown)'}`,
+        `KronosCode Version: ${debug?.version ?? '(unknown)'}`,
         `VS Code version: ${vscode.version}`,
         `Platform: ${process.platform} ${process.arch}`,
         `Workspace folders: ${workspaceFolders.length}${workspaceFolders.length ? ` (${workspaceFolders.join(', ')})` : ''}`,
@@ -456,30 +456,30 @@ export async function activate(context: vscode.ExtensionContext) {
         `Working directory: ${workingDirectory}`,
         `Working dir matches workspace: ${workingDirectoryMatchesWorkspace ? 'yes' : 'no'}`,
         `API URL (configured): ${configuredApiUrl || '(none)'}`,
-        `OpenCode binary (configured): ${(vscode.workspace.getConfiguration('openchamber').get<string>('opencodeBinary') || '').trim() || '(none)'}`,
+        `KronosCode binary (configured): ${(vscode.workspace.getConfiguration('openchamber').get<string>('kronoscodeBinary') || '').trim() || '(none)'}`,
         `API URL (resolved): ${openCodeManager?.getApiUrl() ?? '(none)'}`,
         `API URL path: ${resolvedApiPath || '(none)'}`,
         debug
-          ? `OpenCode server URL: ${debug.serverUrl ?? '(none)'}`
-          : `OpenCode server URL: (unknown)`,
+          ? `KronosCode server URL: ${debug.serverUrl ?? '(none)'}`
+          : `KronosCode server URL: (unknown)`,
         debug
-          ? `OpenCode mode: ${debug.mode} (starts=${debug.startCount}, restarts=${debug.restartCount})`
-          : `OpenCode mode: (unknown)`,
+          ? `KronosCode mode: ${debug.mode} (starts=${debug.startCount}, restarts=${debug.restartCount})`
+          : `KronosCode mode: (unknown)`,
         debug
-          ? `Secure OpenCode connection: ${debug.secureConnection ? 'true' : 'false'}`
-          : `Secure OpenCode connection: (unknown)`,
+          ? `Secure KronosCode connection: ${debug.secureConnection ? 'true' : 'false'}`
+          : `Secure KronosCode connection: (unknown)`,
         debug
-          ? `OpenCode auth source: ${debug.authSource ?? '(none)'}`
-          : `OpenCode auth source: (unknown)`,
+          ? `KronosCode auth source: ${debug.authSource ?? '(none)'}`
+          : `KronosCode auth source: (unknown)`,
         debug
-          ? `OpenCode CLI path: ${debug.cliPath || '(not found)'}`
-          : `OpenCode CLI path: (unknown)`,
+          ? `KronosCode CLI path: ${debug.cliPath || '(not found)'}`
+          : `KronosCode CLI path: (unknown)`,
         debug
-          ? `OpenCode detected port: ${debug.detectedPort ?? '(none)'}`
-          : `OpenCode detected port: (unknown)`,
+          ? `KronosCode detected port: ${debug.detectedPort ?? '(none)'}`
+          : `KronosCode detected port: (unknown)`,
         debug
-          ? `OpenCode API prefix: ${debug.apiPrefixDetected ? (debug.apiPrefix || '(root)') : '(unknown)'}`
-          : `OpenCode API prefix: (unknown)`,
+          ? `KronosCode API prefix: ${debug.apiPrefixDetected ? (debug.apiPrefix || '(root)') : '(unknown)'}`
+          : `KronosCode API prefix: (unknown)`,
         debug
           ? `Last start: ${formatIso(debug.lastStartAt)}`
           : `Last start: (unknown)`,
@@ -502,7 +502,7 @@ export async function activate(context: vscode.ExtensionContext) {
         probes.length ? '' : '',
         ...(probes.length
           ? [
-              'OpenCode API probes:',
+              'KronosCode API probes:',
               ...probes.map((probe) => {
                 if (!probe.result) return `- ${probe.label}: (no url)`;
                 const { ok, status, elapsedMs, summary } = probe.result;
@@ -562,7 +562,7 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Start OpenCode API without blocking activation.
+  // Start KronosCode API without blocking activation.
   // Blocking here delays webview resolution and causes a blank panel until startup completes.
   void openCodeManager.start();
 }

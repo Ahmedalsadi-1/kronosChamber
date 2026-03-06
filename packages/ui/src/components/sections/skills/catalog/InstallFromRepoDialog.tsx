@@ -52,7 +52,7 @@ export const InstallFromRepoDialog: React.FC<InstallFromRepoDialogProps> = ({ op
   const [source, setSource] = React.useState('');
   const [subpath, setSubpath] = React.useState('');
   const [scope, setScope] = React.useState<'user' | 'project'>('user');
-  const [targetSource, setTargetSource] = React.useState<'opencode' | 'agents'>('opencode');
+  const [targetSource, setTargetSource] = React.useState<'kronoscode' | 'agents'>('kronoscode');
 
   const [items, setItems] = React.useState<SkillsCatalogItem[]>([]);
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
@@ -67,7 +67,7 @@ export const InstallFromRepoDialog: React.FC<InstallFromRepoDialogProps> = ({ op
     source: string;
     subpath?: string;
     scope: 'user' | 'project';
-    targetSource: 'opencode' | 'agents';
+    targetSource: 'kronoscode' | 'agents';
     selections: Array<{ skillDir: string }>;
     gitIdentityId?: string;
   } | null>(null);
@@ -77,7 +77,7 @@ export const InstallFromRepoDialog: React.FC<InstallFromRepoDialogProps> = ({ op
     setSource('');
     setSubpath('');
     setScope('user');
-    setTargetSource('opencode');
+    setTargetSource('kronoscode');
     setItems([]);
     setSelected({});
     setSearch('');
@@ -92,7 +92,7 @@ export const InstallFromRepoDialog: React.FC<InstallFromRepoDialogProps> = ({ op
   }, [open, loadDefaultGitIdentityId]);
 
   const installedByName = React.useMemo(() => {
-    const map = new Map<string, { scope: 'user' | 'project'; source: 'opencode' | 'claude' | 'agents' }>();
+    const map = new Map<string, { scope: 'user' | 'project'; source: 'kronoscode' | 'claude' | 'agents' }>();
     for (const s of installedSkills) {
       map.set(s.name, { scope: s.scope, source: s.source });
     }
@@ -289,7 +289,7 @@ export const InstallFromRepoDialog: React.FC<InstallFromRepoDialogProps> = ({ op
                   onValueChange={(v) => {
                     const next = locationPartsFrom(v as SkillLocationValue);
                     setScope(next.scope);
-                    setTargetSource(next.source === 'agents' ? 'agents' : 'opencode');
+                    setTargetSource(next.source === 'agents' ? 'agents' : 'kronoscode');
                   }}
                 >
                   <SelectTrigger className="!h-9 w-full gap-1.5">

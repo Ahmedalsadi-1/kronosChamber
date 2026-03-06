@@ -2,13 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const OPENCHAMBER_DATA_DIR = process.env.OPENCHAMBER_DATA_DIR
-  ? path.resolve(process.env.OPENCHAMBER_DATA_DIR)
+const KRONOSCHAMBER_DATA_DIR = process.env.KRONOSCHAMBER_DATA_DIR
+  ? path.resolve(process.env.KRONOSCHAMBER_DATA_DIR)
   : path.join(os.homedir(), '.config', 'openchamber');
 
-const STORAGE_DIR = OPENCHAMBER_DATA_DIR;
+const STORAGE_DIR = KRONOSCHAMBER_DATA_DIR;
 const STORAGE_FILE = path.join(STORAGE_DIR, 'github-auth.json');
-const SETTINGS_FILE = path.join(OPENCHAMBER_DATA_DIR, 'settings.json');
+const SETTINGS_FILE = path.join(KRONOSCHAMBER_DATA_DIR, 'settings.json');
 
 const DEFAULT_GITHUB_CLIENT_ID = 'Ov23liNd8TxDcMXtAHHM';
 const DEFAULT_GITHUB_SCOPES = 'repo read:org workflow read:user user:email';
@@ -44,7 +44,7 @@ function readJsonFile() {
 function writeJsonFile(payload) {
   ensureStorageDir();
 
-  // Atomic write so multiple OpenChamber instances can safely share the same file.
+  // Atomic write so multiple KronosChamber instances can safely share the same file.
   const tmpFile = `${STORAGE_FILE}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2), 'utf8');
   try {
@@ -269,7 +269,7 @@ export function clearGitHubAuth() {
 }
 
 export function getGitHubClientId() {
-  const raw = process.env.OPENCHAMBER_GITHUB_CLIENT_ID;
+  const raw = process.env.KRONOSCHAMBER_GITHUB_CLIENT_ID;
   const clientId = typeof raw === 'string' ? raw.trim() : '';
   if (clientId) return clientId;
 
@@ -287,7 +287,7 @@ export function getGitHubClientId() {
 }
 
 export function getGitHubScopes() {
-  const raw = process.env.OPENCHAMBER_GITHUB_SCOPES;
+  const raw = process.env.KRONOSCHAMBER_GITHUB_SCOPES;
   const fromEnv = typeof raw === 'string' ? raw.trim() : '';
   if (fromEnv) return fromEnv;
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useUIStore } from '@/stores/useUIStore';
-import type { Session } from '@opencode-ai/sdk/v2';
+import type { Session } from '@kronoscode-ai/sdk/v2';
 import { cn } from '@/lib/utils';
 import { getAgentColor } from '@/lib/agentColors';
 import { RiLoader4Line } from '@remixicon/react';

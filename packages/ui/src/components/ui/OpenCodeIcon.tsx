@@ -1,12 +1,12 @@
 import React from 'react';
 
-interface OpenCodeIconProps {
+interface KronosCodeIconProps {
   className?: string;
   width?: number;
   height?: number;
 }
 
-export const OpenCodeIcon: React.FC<OpenCodeIconProps> = ({
+export const KronosCodeIcon: React.FC<KronosCodeIconProps> = ({
   className = '',
   width = 70,
   height = 70

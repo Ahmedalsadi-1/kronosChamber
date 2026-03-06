@@ -131,7 +131,7 @@ export async function createWorktreeSession(): Promise<{ id: string } | null> {
     // Initialize the session
     const configState = useConfigStore.getState();
     const agents = configState.agents;
-    sessionStore.initializeNewOpenChamberSession(session.id, agents);
+    sessionStore.initializeNewKronosChamberSession(session.id, agents);
     sessionStore.setSessionDirectory(session.id, metadata.path);
     sessionStore.setWorktreeMetadata(session.id, createdMetadataWithStatus);
 
@@ -332,7 +332,7 @@ export async function createWorktreeSessionForBranch(
   try {
     const projectRef = resolveProjectRef(projectDirectory);
     if (!projectRef) {
-      throw new Error('Project is not registered in OpenChamber');
+      throw new Error('Project is not registered in KronosChamber');
     }
 
     // Check if it's a git repo (root project path)
@@ -392,7 +392,7 @@ export async function createWorktreeSessionForBranch(
     // Initialize the session
     const configState = useConfigStore.getState();
     const agents = configState.agents;
-    sessionStore.initializeNewOpenChamberSession(session.id, agents);
+    sessionStore.initializeNewKronosChamberSession(session.id, agents);
     sessionStore.setSessionDirectory(session.id, metadata.path);
     sessionStore.setWorktreeMetadata(session.id, createdMetadataWithStatus);
 
@@ -523,7 +523,7 @@ export async function createWorktreeSessionForNewBranch(
 
     const projectRef = resolveProjectRef(projectDirectory);
     if (!projectRef) {
-      throw new Error('Project is not registered in OpenChamber');
+      throw new Error('Project is not registered in KronosChamber');
     }
 
     let isGitRepo = false;
@@ -573,7 +573,7 @@ export async function createWorktreeSessionForNewBranch(
         }
 
         const configState = useConfigStore.getState();
-        sessionStore.initializeNewOpenChamberSession(session.id, configState.agents);
+        sessionStore.initializeNewKronosChamberSession(session.id, configState.agents);
         sessionStore.setSessionDirectory(session.id, metadata.path);
         sessionStore.setWorktreeMetadata(session.id, createdMetadataWithStatus);
 

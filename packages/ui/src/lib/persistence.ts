@@ -31,7 +31,18 @@ const persistToLocalStorage = (settings: DesktopSettings) => {
   }
   if (settings.homeDirectory) {
     localStorage.setItem('homeDirectory', settings.homeDirectory);
-    window.__OPENCHAMBER_HOME__ = settings.homeDirectory;
+    window.__KRONOSCHAMBER_HOME__ = settings.homeDirectory;
+  }
+  if (typeof settings.agentMode === 'string') {
+    localStorage.setItem('agentMode', settings.agentMode);
+  }
+  if (settings.agentModeByProject && typeof settings.agentModeByProject === 'object') {
+    localStorage.setItem('agentModeByProject', JSON.stringify(settings.agentModeByProject));
+  } else {
+    localStorage.removeItem('agentModeByProject');
+  }
+  if (typeof settings.browserOpenAtStartup === 'boolean') {
+    localStorage.setItem('browserOpenAtStartup', settings.browserOpenAtStartup ? 'true' : 'false');
   }
   if (Array.isArray(settings.projects) && settings.projects.length > 0) {
     localStorage.setItem('projects', JSON.stringify(settings.projects));
@@ -366,9 +377,31 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
     result.homeDirectory = candidate.homeDirectory;
   }
 
-  if (typeof candidate.opencodeBinary === 'string') {
-    const trimmed = candidate.opencodeBinary.trim();
-    result.opencodeBinary = trimmed.length > 0 ? trimmed : undefined;
+  if (typeof candidate.kronoscodeBinary === 'string') {
+    const trimmed = candidate.kronoscodeBinary.trim();
+    result.kronoscodeBinary = trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof candidate.aiBrowserEnabled === 'boolean') {
+    result.aiBrowserEnabled = candidate.aiBrowserEnabled;
+  }
+  if (
+    typeof candidate.agentMode === 'string' &&
+    (candidate.agentMode === 'off' || candidate.agentMode === 'e2b' || candidate.agentMode === 'openbrowser')
+  ) {
+    result.agentMode = candidate.agentMode;
+  }
+  if (candidate.agentModeByProject && typeof candidate.agentModeByProject === 'object') {
+    const nextMap: Record<string, 'e2b' | 'openbrowser'> = {};
+    for (const [key, value] of Object.entries(candidate.agentModeByProject as Record<string, unknown>)) {
+      if (typeof key !== 'string' || key.trim().length === 0) continue;
+      if (value === 'e2b' || value === 'openbrowser') {
+        nextMap[key.trim()] = value;
+      }
+    }
+    result.agentModeByProject = nextMap;
+  }
+  if (typeof candidate.browserOpenAtStartup === 'boolean') {
+    result.browserOpenAtStartup = candidate.browserOpenAtStartup;
   }
 
   const projects = sanitizeProjects(candidate.projects);

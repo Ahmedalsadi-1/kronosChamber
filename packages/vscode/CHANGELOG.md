@@ -5,7 +5,7 @@
 - Settings: added customizable keyboard shortcuts for chat actions, panel toggles, and services, so you can better match the extension to your workflow (thanks to @nelsonPires5).
 - UI: unified clipboard copy behavior for more consistent copy actions and feedback across extension surfaces.
 - Reliability: improved startup environment detection by capturing login-shell environment snapshots, reducing missing PATH/tool issues on launch.
-- Reliability: refactored OpenCode config/auth integration into domain modules for steadier provider auth and command loading flows (thanks to @nelsonPires5).
+- Reliability: refactored KronosCode config/auth integration into domain modules for steadier provider auth and command loading flows (thanks to @nelsonPires5).
 
 ## [1.7.2] - 2026-02-20
 
@@ -18,12 +18,12 @@
 
 ## [1.7.1] - 2026-02-18
 
-- Chat: slash commands now follow server command semantics (including multiline arguments), so command behavior is more consistent with OpenCode CLI.
+- Chat: slash commands now follow server command semantics (including multiline arguments), so command behavior is more consistent with KronosCode CLI.
 - Chat: added a shell mode triggered by leading `!`, with inline output visibility/copy.
 - Chat: improved delegated-task clarity with richer subtask bubbles, better task-detail rendering, and parent-chat surfacing for child permission/question requests.
 - Chat: improved `@` mention autocomplete by prioritizing agents and cleaning up ordering for faster picks.
-- Skills: discovery now uses OpenCode API as the source of truth with safer fallback scanning, improving installed-state accuracy.
-- Skills: upgraded editing/install UX with better code editing, syntax-aware related files, and clearer location targeting across user/project .opencode and .agents scopes.
+- Skills: discovery now uses KronosCode API as the source of truth with safer fallback scanning, improving installed-state accuracy.
+- Skills: upgraded editing/install UX with better code editing, syntax-aware related files, and clearer location targeting across user/project .kronoscode and .agents scopes.
 
 ## [1.7.0] - 2026-02-17
 
@@ -55,14 +55,14 @@
 ## [1.6.6] - 2026-02-9
 
 - Usage: added per-model quota groups in the header and fixed provider dropdown scrolling for easier usage tracking (thanks to @nelsonPires5, @gsxdsm).
-- Reliability: fixed OpenCode auth pass-through/proxy behavior to reduce failed extension requests (thanks to @gsxdsm).
+- Reliability: fixed KronosCode auth pass-through/proxy behavior to reduce failed extension requests (thanks to @gsxdsm).
 
 ## [1.6.5] - 2026-02-6
 
-- Settings: added an OpenCode CLI path override so you can use a custom/local CLI install.
+- Settings: added an KronosCode CLI path override so you can use a custom/local CLI install.
 - Chat: added arrow-key prompt history and an optional setting to persist input drafts between restarts (thanks to @gsxdsm).
 - Chat: thinking/reasoning blocks now render more consistently, and justification visibility settings now apply reliably (thanks to @gsxdsm).
-- Reliability: improved OpenCode binary resolution and HOME-path handling for steadier local startup.
+- Reliability: improved KronosCode binary resolution and HOME-path handling for steadier local startup.
 
 ## [1.6.4] - 2026-02-5
 
@@ -150,7 +150,7 @@
 
 - Chat: optimized message loading for opening sessions.
 - Layout: tuned responsive breakpoint and server readiness timeout for steadier startup.
-- Reliability: improved OpenCode process cleanup to reduce orphaned servers.
+- Reliability: improved KronosCode process cleanup to reduce orphaned servers.
 
 
 ## [1.5.1] - 2026-01-16
@@ -160,9 +160,9 @@
 
 ## [1.5.0] - 2026-01-16
 
-- Improved OpenCode server management to ensure it initializes within the workspace directory.
+- Improved KronosCode server management to ensure it initializes within the workspace directory.
 - Enhanced extension startup with context-aware readiness checks for the current workspace.
-- Fixed orphaned OpenCode processes not being cleaned up on restart or exit.
+- Fixed orphaned KronosCode processes not being cleaned up on restart or exit.
 - Session tabs: fixed opening new session in editor tab; title bar button now opens new session tab, sidebar button opens current or new session.
 - Layout: added responsive expanded layout showing sessions sidebar + chat side-by-side when extension is wide enough (≥700px).
 - Layout: extension now opens to sessions list instead of new session draft.
@@ -195,7 +195,7 @@
 
 ## [1.4.6] - 2026-01-09
 
-- Switch opencode cli management to SDK.
+- Switch kronoscode cli management to SDK.
 - Input: removed auto-complete and auto-correction.
 - Shortcuts: switched agent cycling shortcut from Shift + TAB to TAB again.
 - Chat: added question tool support with a rich UI for interaction.
@@ -228,7 +228,7 @@
 ## [1.4.3] - 2026-01-04
 
 - Added Agent Manager panel to run the same prompt across up to 5 models in parallel (thanks to @wienans).
-- Added permission prompt UI for tools configured with "ask" in opencode.json, showing requested patterns and "Always Allow" options (thanks to @aptdnfapt).
+- Added permission prompt UI for tools configured with "ask" in kronoscode.json, showing requested patterns and "Always Allow" options (thanks to @aptdnfapt).
 - Added "Open subAgent session" button on task tool outputs to quickly navigate to child sessions (thanks to @aptdnfapt).
 - Improved activation reliability and error handling.
 
@@ -238,7 +238,7 @@
 - Added timeline dialog (`/timeline` command or Cmd/Ctrl+T) for navigating, reverting, and forking from any point in the conversation (thanks to @aptdnfapt).
 - Added `/undo` and `/redo` commands for reverting and restoring messages in a session (thanks to @aptdnfapt).
 - Added fork button on user messages to create a new session from any point (thanks to @aptdnfapt).
-- Migrated to OpenCode SDK v2 with improved API types and streaming.
+- Migrated to KronosCode SDK v2 with improved API types and streaming.
 
 
 ## [1.4.1] - 2026-01-02
@@ -306,7 +306,7 @@
 
 ## [1.3.3] - 2025-12-25
 
-- Fixed startup, more reliable OpenCode CLI/API management, and stabilized API proxying/streaming.
+- Fixed startup, more reliable KronosCode CLI/API management, and stabilized API proxying/streaming.
 - Added an animated loading screen and introduced command for status/debug output.
 - Fixed session activity tracking so it correctly handles transitions through states.
 - Fixed directory path handling (including `~` expansion) to prevent invalid paths and related Git/worktree errors.

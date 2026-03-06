@@ -17,7 +17,7 @@ import type {
   GitHubDeviceFlowComplete,
   GitHubDeviceFlowStart,
   GitHubUserSummary,
-} from '@openchamber/ui/lib/api/types';
+} from '@kronoscode-ai/ui/lib/api/types';
 
 import { sendBridgeMessage } from './bridge';
 

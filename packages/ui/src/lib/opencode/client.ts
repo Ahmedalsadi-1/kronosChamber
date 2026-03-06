@@ -1,4 +1,4 @@
-import { createOpencodeClient, OpencodeClient } from "@opencode-ai/sdk/v2";
+import { createOpencodeClient, OpencodeClient } from "@kronoscode-ai/sdk/v2";
 import type { FilesAPI, RuntimeAPIs } from "../api/types";
 import { getDesktopHomeDirectory } from "../desktop";
 import type {
@@ -12,7 +12,7 @@ import type {
   TextPartInput,
   FilePartInput,
   Event,
-} from "@opencode-ai/sdk/v2";
+} from "@kronoscode-ai/sdk/v2";
 import type { PermissionRequest } from "@/types/permission";
 import type { QuestionRequest } from "@/types/question";
 type StreamEvent<TData> = {
@@ -28,8 +28,8 @@ export type RoutedOpencodeEvent = {
 };
 
 // Use relative path by default (works with both dev and nginx proxy server)
-// Can be overridden with VITE_OPENCODE_URL for absolute URLs in special deployments
-const DEFAULT_BASE_URL = import.meta.env.VITE_OPENCODE_URL || "/api";
+// Can be overridden with VITE_KRONOSCODE_URL for absolute URLs in special deployments
+const DEFAULT_BASE_URL = import.meta.env.VITE_KRONOSCODE_URL || "/api";
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//;
 
 const ensureAbsoluteBaseUrl = (candidate: string): string => {
@@ -51,7 +51,7 @@ const ensureAbsoluteBaseUrl = (candidate: string): string => {
   try {
     return new URL(normalized, baseReference).toString();
   } catch (error) {
-    console.warn("Failed to normalize OpenCode base URL:", error);
+    console.warn("Failed to normalize KronosCode base URL:", error);
     return normalized;
   }
 };
@@ -61,12 +61,12 @@ const resolveDesktopBaseUrl = (): string | null => {
     return null;
   }
   const desktopServer = (window as typeof window & {
-    __OPENCHAMBER_DESKTOP_SERVER__?: { origin: string; apiPrefix?: string };
-    __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
-  }).__OPENCHAMBER_DESKTOP_SERVER__;
+    __KRONOSCHAMBER_DESKTOP_SERVER__?: { origin: string; apiPrefix?: string };
+    __KRONOSCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
+  }).__KRONOSCHAMBER_DESKTOP_SERVER__;
 
   const isDesktop = Boolean(
-    (window as typeof window & { __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__OPENCHAMBER_RUNTIME_APIS__?.runtime?.isDesktop
+    (window as typeof window & { __KRONOSCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__KRONOSCHAMBER_RUNTIME_APIS__?.runtime?.isDesktop
   );
 
   if (!desktopServer || !isDesktop) {
@@ -99,6 +99,115 @@ export type ProjectFileSearchHit = {
   path: string;
   relativePath: string;
   extension?: string;
+};
+
+export type BrowserRuntimePage = {
+  id: string;
+  index: number;
+  title: string;
+  url: string;
+  active: boolean;
+  createdAt: number;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  isLoading?: boolean;
+  lastError?: string | null;
+};
+
+export type BrowserRuntimeState = {
+  enabled: boolean;
+  sessionID: string;
+  pages: BrowserRuntimePage[];
+  activePageID: string | null;
+  error?: string;
+};
+
+export type BrowserRuntimeAction =
+  | 'newPage'
+  | 'navigate'
+  | 'selectPage'
+  | 'closePage'
+  | 'back'
+  | 'forward'
+  | 'reload'
+  | 'stop'
+  | 'waitFor'
+  | 'resize'
+  | 'handleDialog'
+  | 'click'
+  | 'hover'
+  | 'fill'
+  | 'fillForm'
+  | 'drag'
+  | 'pressKey'
+  | 'uploadFile'
+  | 'snapshot'
+  | 'screenshot'
+  | 'evaluate'
+  | 'networkRequests'
+  | 'networkRequest'
+  | 'console'
+  | 'consoleMessage'
+  | 'emulate'
+  | 'perfStart'
+  | 'perfStop'
+  | 'perfInsight';
+
+export type BrowserRuntimeActionPayloadMap = {
+  newPage: { url?: string; timeout?: number };
+  navigate: { type?: 'url' | 'back' | 'forward' | 'reload'; url?: string; timeout?: number };
+  selectPage: { pageIdx?: number };
+  closePage: { pageIdx?: number };
+  back: Record<string, never>;
+  forward: Record<string, never>;
+  reload: Record<string, never>;
+  stop: Record<string, never>;
+  waitFor: { text: string; timeout?: number };
+  resize: { width?: number; height?: number };
+  handleDialog: { action?: 'accept' | 'dismiss'; promptText?: string };
+  click: { uid?: string; selector?: string; button?: 'left' | 'right' | 'middle'; doubleClick?: boolean };
+  hover: { uid?: string; selector?: string };
+  fill: { uid?: string; selector?: string; value?: string };
+  fillForm: { fields?: Array<{ uid?: string; selector?: string; value: string }> };
+  drag: { sourceUid?: string; sourceSelector?: string; targetUid?: string; targetSelector?: string };
+  pressKey: { key?: string };
+  uploadFile: { uid?: string; selector?: string; files?: string[] };
+  snapshot: Record<string, never>;
+  screenshot: { fullPage?: boolean };
+  evaluate: { script?: string };
+  networkRequests: { limit?: number };
+  networkRequest: { index?: number; urlContains?: string };
+  console: { limit?: number };
+  consoleMessage: { index?: number };
+  emulate: {
+    width?: number;
+    height?: number;
+    colorScheme?: 'light' | 'dark' | 'no-preference';
+    reducedMotion?: 'reduce' | 'no-preference';
+    locale?: string;
+    timezoneId?: string;
+    geolocation?: { latitude: number; longitude: number };
+  };
+  perfStart: Record<string, never>;
+  perfStop: Record<string, never>;
+  perfInsight: Record<string, never>;
+};
+
+export type BrowserRuntimeActionPayload<TAction extends BrowserRuntimeAction> = BrowserRuntimeActionPayloadMap[TAction];
+
+export type BrowserRuntimeEvent = {
+  type: string;
+  sessionID: string;
+  at: number;
+  reason?: string;
+  [key: string]: unknown;
+};
+
+export type BrowserFrameResponse = {
+  mime: string;
+  base64: string;
+  title?: string;
+  pageID?: string;
 };
 
 type AgentPartInputLite = {
@@ -134,7 +243,7 @@ const getDesktopFilesApi = (): FilesAPI | null => {
   if (typeof window === "undefined") {
     return null;
   }
-  const apis = (window as typeof window & { __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__OPENCHAMBER_RUNTIME_APIS__;
+  const apis = (window as typeof window & { __KRONOSCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__KRONOSCHAMBER_RUNTIME_APIS__;
   if (apis && apis.runtime?.isDesktop && apis.files) {
     return apis.files;
   }
@@ -355,7 +464,7 @@ class OpencodeService {
   }
 
   /**
-   * Best-effort probe whether a directory is accessible to OpenCode.
+   * Best-effort probe whether a directory is accessible to KronosCode.
    * This is intentionally NOT the same as local filesystem access in the UI runtime.
    */
   async probeDirectory(directory: string): Promise<boolean> {
@@ -931,6 +1040,203 @@ class OpencodeService {
     }
   }
 
+  // Experimental browser runtime endpoints
+  async getBrowserRuntimeState(sessionID: string): Promise<BrowserRuntimeState> {
+    const base = this.baseUrl.replace(/\/$/, "");
+    const url = new URL(`${base}/experimental/browser/state`);
+    url.searchParams.set("sessionID", sessionID);
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    const payload = (await response.json().catch(() => null)) as BrowserRuntimeState | null;
+    if (response.ok && payload) {
+      return payload;
+    }
+
+    if (response.status === 503) {
+      return {
+        enabled: false,
+        sessionID,
+        pages: [],
+        activePageID: null,
+        error: payload && typeof payload.error === "string" ? payload.error : "AI Browser is disabled",
+      };
+    }
+
+    throw new Error(
+      payload && typeof payload.error === "string"
+        ? payload.error
+        : `Failed to fetch browser state (${response.status})`
+    );
+  }
+
+  async getBrowserFrame(sessionID: string): Promise<BrowserFrameResponse> {
+    const base = this.baseUrl.replace(/\/$/, "");
+    const url = new URL(`${base}/experimental/browser/frame`);
+    url.searchParams.set("sessionID", sessionID);
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    const payload = (await response.json().catch(() => null)) as BrowserFrameResponse | { error?: unknown } | null;
+    if (!response.ok || !payload || typeof (payload as BrowserFrameResponse).base64 !== "string") {
+      const payloadError =
+        payload
+        && typeof payload === "object"
+        && "error" in payload
+        && typeof (payload as { error?: unknown }).error === "string"
+          ? ((payload as { error: string }).error)
+          : null;
+      throw new Error(
+        payloadError ?? `Failed to fetch browser frame (${response.status})`
+      );
+    }
+
+    return payload as BrowserFrameResponse;
+  }
+
+  async runBrowserAction<TAction extends BrowserRuntimeAction>(
+    sessionID: string,
+    action: TAction,
+    payload?: BrowserRuntimeActionPayload<TAction>
+  ): Promise<unknown> {
+    const base = this.baseUrl.replace(/\/$/, "");
+    const url = `${base}/experimental/browser/action`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        sessionID,
+        action,
+        payload: payload ?? {},
+      }),
+    });
+
+    const body = (await response.json().catch(() => null)) as { error?: unknown } | unknown;
+    if (!response.ok) {
+      const errorMessage =
+        body && typeof body === "object" && typeof (body as { error?: unknown }).error === "string"
+          ? (body as { error: string }).error
+          : `Browser action failed (${response.status})`;
+      throw new Error(errorMessage);
+    }
+
+    return body;
+  }
+
+  subscribeToBrowserEvents(
+    sessionID: string,
+    onEvent: (event: BrowserRuntimeEvent) => void,
+    onError?: (error: unknown) => void,
+    onOpen?: () => void
+  ): () => void {
+    const base = this.baseUrl.replace(/\/$/, '');
+    const endpoint = new URL(`${base}/experimental/browser/events`);
+    endpoint.searchParams.set('sessionID', sessionID);
+
+    const abortController = new AbortController();
+    let lastEventId: string | undefined;
+
+    const run = async () => {
+      let attempt = 0;
+      while (!abortController.signal.aborted) {
+        try {
+          const headers: Record<string, string> = {
+            Accept: 'text/event-stream',
+            'Cache-Control': 'no-cache',
+          };
+          if (lastEventId) {
+            headers['Last-Event-ID'] = lastEventId;
+          }
+
+          const response = await fetch(endpoint.toString(), {
+            method: 'GET',
+            headers,
+            signal: abortController.signal,
+          });
+
+          if (!response.ok || !response.body) {
+            throw new Error(`Browser SSE connect failed with status ${response.status}`);
+          }
+
+          attempt = 0;
+          if (onOpen) {
+            onOpen();
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done || abortController.signal.aborted) break;
+            if (!value || value.length === 0) continue;
+
+            buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+            const blocks = buffer.split('\n\n');
+            buffer = blocks.pop() ?? '';
+
+            for (const block of blocks) {
+              const parsed = this.parseSseBlock(block);
+              if (!parsed) continue;
+              if (parsed.id) {
+                lastEventId = parsed.id;
+              }
+              const normalized = this.normalizeBrowserRuntimeEvent(parsed.data, sessionID);
+              if (normalized) {
+                onEvent(normalized);
+              }
+            }
+          }
+
+          const remaining = buffer.trim();
+          if (!abortController.signal.aborted && remaining) {
+            const parsed = this.parseSseBlock(remaining);
+            if (parsed?.id) {
+              lastEventId = parsed.id;
+            }
+            const normalized = parsed ? this.normalizeBrowserRuntimeEvent(parsed.data, sessionID) : null;
+            if (normalized) {
+              onEvent(normalized);
+            }
+          }
+        } catch (error) {
+          if ((error as Error)?.name === 'AbortError' || abortController.signal.aborted) {
+            return;
+          }
+          if (onError) {
+            onError(error);
+          }
+          attempt += 1;
+          const delay = Math.min(3000 * Math.pow(2, attempt), 30000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      if (!abortController.signal.aborted) {
+        abortController.abort();
+      }
+    };
+  }
+
   // Permissions
   async replyToPermission(
     requestId: string,
@@ -1152,6 +1458,37 @@ class OpencodeService {
     } catch {
       return null;
     }
+  }
+
+  private normalizeBrowserRuntimeEvent(raw: unknown, fallbackSessionID: string): BrowserRuntimeEvent | null {
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+
+    const record = raw as Record<string, unknown>;
+    if (typeof record.type === 'string') {
+      return {
+        ...record,
+        type: record.type,
+        sessionID: typeof record.sessionID === 'string' ? record.sessionID : fallbackSessionID,
+        at: typeof record.at === 'number' ? record.at : Date.now(),
+      } as BrowserRuntimeEvent;
+    }
+
+    const payload = record.payload;
+    if (payload && typeof payload === 'object') {
+      const nested = payload as Record<string, unknown>;
+      if (typeof nested.type === 'string') {
+        return {
+          ...nested,
+          type: nested.type,
+          sessionID: typeof nested.sessionID === 'string' ? nested.sessionID : fallbackSessionID,
+          at: typeof nested.at === 'number' ? nested.at : Date.now(),
+        } as BrowserRuntimeEvent;
+      }
+    }
+
+    return null;
   }
 
   private normalizeRoutedSsePayload(raw: unknown): RoutedOpencodeEvent | null {
@@ -1869,8 +2206,8 @@ class OpencodeService {
 
       const healthData = await response.json();
 
-      // Check if the upstream API is ready (not just OpenChamber server)
-      if (healthData.isOpenCodeReady === false) {
+      // Check if the upstream API is ready (not just KronosChamber server)
+      if (healthData.isKronosCodeReady === false) {
         return false;
       }
 
@@ -2096,13 +2433,13 @@ class OpencodeService {
     }
   }
 
-  async setOpenCodeWorkingDirectory(directoryPath: string | null | undefined): Promise<DirectorySwitchResult | null> {
+  async setKronosCodeWorkingDirectory(directoryPath: string | null | undefined): Promise<DirectorySwitchResult | null> {
     if (!directoryPath || typeof directoryPath !== 'string' || !directoryPath.trim()) {
-      console.warn('[OpencodeClient] setOpenCodeWorkingDirectory: invalid path', directoryPath);
+      console.warn('[OpencodeClient] setKronosCodeWorkingDirectory: invalid path', directoryPath);
       return null;
     }
 
-    const url = `${this.baseUrl}/opencode/directory`;
+    const url = `${this.baseUrl}/kronoscode/directory`;
     console.log('[OpencodeClient] POST', url, 'with path:', directoryPath);
 
     try {
@@ -2121,7 +2458,7 @@ class OpencodeService {
         const message =
           typeof error.error === 'string' && error.error.length > 0
             ? error.error
-            : 'Failed to update OpenCode working directory';
+            : 'Failed to update KronosCode working directory';
         throw new Error(message);
       }
 
@@ -2135,14 +2472,15 @@ class OpencodeService {
         path: directoryPath
       };
     } catch (error) {
-      console.warn('Failed to update OpenCode working directory:', error);
+      console.warn('Failed to update KronosCode working directory:', error);
       throw error;
     }
   }
 }
 
 // Exported singleton instance
-export const opencodeClient = new OpencodeService();
+export const kronoscodeClient = new OpencodeService();
+export const opencodeClient = kronoscodeClient;
 
 // Exported types
 export type { Session, Message, Part, Provider, Config, Model };

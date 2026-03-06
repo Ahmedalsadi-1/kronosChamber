@@ -2,7 +2,7 @@ import type { CommandExecResult, FilesAPI, RuntimeAPIs } from '@/lib/api/types';
 
 type ExecResult = { success: boolean; results: CommandExecResult[] };
 
-const DEFAULT_BASE_URL = import.meta.env.VITE_OPENCODE_URL || '/api';
+const DEFAULT_BASE_URL = import.meta.env.VITE_KRONOSCODE_URL || '/api';
 
 const getBaseUrl = (): string => {
   if (typeof DEFAULT_BASE_URL === 'string' && DEFAULT_BASE_URL.startsWith('/')) {
@@ -13,7 +13,7 @@ const getBaseUrl = (): string => {
 
 function getRuntimeFilesAPI(): FilesAPI | null {
   if (typeof window === 'undefined') return null;
-  const apis = (window as typeof window & { __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__OPENCHAMBER_RUNTIME_APIS__;
+  const apis = (window as typeof window & { __KRONOSCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__KRONOSCHAMBER_RUNTIME_APIS__;
   if (apis?.files) {
     return apis.files;
   }

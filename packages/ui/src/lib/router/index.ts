@@ -1,12 +1,12 @@
 /**
- * Router module for URL-based navigation in OpenChamber.
+ * Router module for URL-based navigation in KronosChamber.
  *
  * Provides bidirectional sync between URL query parameters and application state.
  * Works across web, desktop (Tauri), and VS Code (state-only mode).
  *
  * URL Schema:
  * - `?session=<id>` - Navigate to specific session
- * - `?tab=<chat|git|diff|terminal|files>` - Active main tab
+ * - `?tab=<chat|browser|git|diff|terminal|files>` - Active main tab
  * - `?settings=<section>` - Open settings to specific section
  * - `?file=<path>` - Diff view with file selected
  *

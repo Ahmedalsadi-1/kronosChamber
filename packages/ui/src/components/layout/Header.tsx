@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { AnimatedTabs } from '@/components/ui/animated-tabs';
 
-import { RiArrowLeftSLine, RiChat4Line, RiCheckLine, RiCloseLine, RiCommandLine, RiFileTextLine, RiFolder6Line, RiFolderAddLine, RiGitBranchLine, RiGithubFill, RiLayoutLeftLine, RiLayoutRightLine, RiMore2Fill, RiPencilLine, RiPlayListAddLine, RiRefreshLine, RiServerLine, RiSettings3Line, RiStackLine, RiTerminalBoxLine, RiTimerLine, type RemixiconComponentType } from '@remixicon/react';
+import { RiArrowLeftSLine, RiChat4Line, RiCheckLine, RiCloseLine, RiCommandLine, RiFileTextLine, RiFolder6Line, RiFolderAddLine, RiGitBranchLine, RiGithubFill, RiLayoutColumnLine, RiLayoutLeftLine, RiLayoutRightLine, RiLayoutRowLine, RiMore2Fill, RiPencilLine, RiPlayListAddLine, RiRefreshLine, RiServerLine, RiSettings3Line, RiStackLine, RiTerminalBoxLine, RiTimerLine, RiWindow2Line, type RemixiconComponentType } from '@remixicon/react';
 import { DiffIcon } from '@/components/icons/DiffIcon';
 import { useUIStore, type MainTab } from '@/stores/useUIStore';
 import { useUpdateStore } from '@/stores/useUpdateStore';
@@ -112,11 +112,11 @@ const joinPath = (base: string, segment: string): string => {
 };
 
 const buildRepoPlansDirectory = (directory: string): string => {
-  return joinPath(joinPath(directory, '.opencode'), 'plans');
+  return joinPath(joinPath(directory, '.kronoscode'), 'plans');
 };
 
 const buildHomePlansDirectory = (): string => {
-  return '~/.opencode/plans';
+  return '~/.kronoscode/plans';
 };
 
 const resolveTilde = (path: string, homeDir: string | null): string => {
@@ -149,6 +149,8 @@ export const Header: React.FC = () => {
   const setSettingsDialogOpen = useUIStore((state) => state.setSettingsDialogOpen);
   const activeMainTab = useUIStore((state) => state.activeMainTab);
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab);
+  const toggleBrowserChatLayoutMode = useUIStore((state) => state.toggleBrowserChatLayoutMode);
+  const resolveBrowserChatLayoutMode = useUIStore((state) => state.resolveBrowserChatLayoutMode);
   const shortcutOverrides = useUIStore((state) => state.shortcutOverrides);
 
   const { getCurrentModel } = useConfigStore();
@@ -192,12 +194,7 @@ export const Header: React.FC = () => {
 
   const headerRef = React.useRef<HTMLElement | null>(null);
 
-  const [isDesktopApp, setIsDesktopApp] = React.useState<boolean>(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    return isDesktopShell();
-  });
+  const isDesktopApp = runtimeApis.runtime.isDesktop || isDesktopShell();
 
   const isMacPlatform = React.useMemo(() => {
     if (typeof navigator === 'undefined') {
@@ -211,7 +208,7 @@ export const Header: React.FC = () => {
       return null;
     }
 
-    const injected = (window as unknown as { __OPENCHAMBER_MACOS_MAJOR__?: unknown }).__OPENCHAMBER_MACOS_MAJOR__;
+    const injected = (window as unknown as { __KRONOSCHAMBER_MACOS_MAJOR__?: unknown }).__KRONOSCHAMBER_MACOS_MAJOR__;
     if (typeof injected === 'number' && Number.isFinite(injected) && injected > 0) {
       return injected;
     }
@@ -230,13 +227,6 @@ export const Header: React.FC = () => {
       return null;
     }
     return first === 10 ? second : first;
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    setIsDesktopApp(isDesktopShell());
   }, []);
 
   const currentModel = getCurrentModel();
@@ -542,7 +532,7 @@ export const Header: React.FC = () => {
     try {
       const cfg = await desktopHostsGet();
       const currentHref = window.location.href;
-      const localOrigin = window.__OPENCHAMBER_LOCAL_ORIGIN__ || window.location.origin;
+      const localOrigin = window.__KRONOSCHAMBER_LOCAL_ORIGIN__ || window.location.origin;
 
       if (locationMatchesHost(currentHref, localOrigin)) {
         setCurrentInstanceLabel('Local');
@@ -1012,6 +1002,10 @@ export const Header: React.FC = () => {
       { id: 'chat', label: 'Chat', icon: RiChat4Line },
     ];
 
+    if (isDesktopApp) {
+      base.push({ id: 'browser', label: 'Browser', icon: RiWindow2Line });
+    }
+
     if (showPlanTab) {
       base.push({ id: 'plan', label: 'Plan', icon: RiFileTextLine });
     }
@@ -1039,17 +1033,20 @@ export const Header: React.FC = () => {
     }
 
     return base;
-  }, [diffFileCount, isMobile, showPlanTab]);
+  }, [diffFileCount, isDesktopApp, isMobile, showPlanTab]);
 
   const shortcutLabel = React.useCallback((actionId: string) => {
     return formatShortcutForDisplay(getEffectiveShortcutCombo(actionId, shortcutOverrides));
   }, [shortcutOverrides]);
 
   useEffect(() => {
-    if (!isMobile && (activeMainTab === 'git' || activeMainTab === 'terminal' || activeMainTab === 'diff' || activeMainTab === 'files')) {
+    if (
+      (!isMobile && (activeMainTab === 'git' || activeMainTab === 'terminal' || activeMainTab === 'diff' || activeMainTab === 'files'))
+      || (!isDesktopApp && activeMainTab === 'browser')
+    ) {
       setActiveMainTab('chat');
     }
-  }, [activeMainTab, isMobile, setActiveMainTab]);
+  }, [activeMainTab, isDesktopApp, isMobile, setActiveMainTab]);
 
   const servicesTabs = React.useMemo(() => {
     const base: Array<{ value: 'instance' | 'usage' | 'mcp'; label: string; icon: RemixiconComponentType }> = [];
@@ -1734,6 +1731,56 @@ export const Header: React.FC = () => {
             </TooltipContent>
           </Tooltip>
         )}
+        {showProjectTabs && isDesktopApp && (
+          <Tooltip delayDuration={500}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="Open Browser"
+                onClick={() => setActiveMainTab('browser')}
+                className={cn(headerIconButtonClass, activeMainTab === 'browser' && 'bg-[var(--interactive-hover)] text-foreground')}
+              >
+                <RiWindow2Line className="h-5 w-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Browser</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {activeMainTab === 'browser' && (
+          <div className="flex items-center gap-0.5 rounded-lg bg-[var(--surface-muted)]/50 p-0.5 mr-2">
+            {[
+              { id: 'split' as const, label: 'Split', icon: RiLayoutLeftLine },
+              { id: 'browser-only' as const, label: 'Browser', icon: RiWindow2Line },
+              { id: 'chat-only' as const, label: 'Chat', icon: RiChat4Line },
+            ].map((mode) => {
+              const isActive = resolveBrowserChatLayoutMode(openDirectory) === mode.id;
+              return (
+                <Tooltip key={mode.id} delayDuration={500}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => useUIStore.getState().setBrowserChatLayoutMode(mode.id, { directory: openDirectory })}
+                      className={cn(
+                        'flex h-7 items-center gap-1.5 px-2 rounded-md transition-colors',
+                        isActive
+                          ? 'bg-interactive-selection text-interactive-selection-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50'
+                      )}
+                    >
+                      <mode.icon className="h-3.5 w-3.5" />
+                      <span className="text-[11px] font-medium">{mode.label}</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{mode.label} View</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        )}
         <OpenInAppButton directory={openDirectory} className="mr-1" />
         <DropdownMenu
             open={isDesktopServicesOpen}
@@ -1758,12 +1805,20 @@ export const Header: React.FC = () => {
                     className={cn(
                       headerIconButtonClass,
                       isDesktopApp
-                        ? 'w-auto max-w-[14rem] justify-start gap-1.5 px-2.5'
+                        ? 'w-auto max-w-[14rem] justify-start gap-2 px-2.5'
                         : 'h-9 w-9'
                     )}
                   >
-                    <RiStackLine className="h-5 w-5" />
-                    {isDesktopApp && <span className="truncate typography-ui-label font-medium text-foreground">{currentInstanceLabel}</span>}
+                    <RiStackLine className="h-5 w-5 shrink-0" />
+                    {isDesktopApp && (
+                      <div className="flex flex-col items-start text-left leading-none gap-0.5">
+                        <span className="truncate typography-ui-label font-medium text-foreground">{currentInstanceLabel}</span>
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          System Online
+                        </span>
+                      </div>
+                    )}
                   </button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>

@@ -16,7 +16,7 @@ interface ZenModel {
   owned_by?: string;
 }
 
-const FALLBACK_PROVIDER_ID = 'opencode';
+const FALLBACK_PROVIDER_ID = 'kronoscode';
 const FALLBACK_MODEL_ID = 'big-pickle';
 
 const getDisplayModel = (

@@ -50,17 +50,17 @@ export const AgentGroupDetail: React.FC<AgentGroupDetailProps> = ({
     return group.sessions.find((s) => s.id === selectedSessionId) ?? group.sessions[0] ?? null;
   }, [group.sessions, selectedSessionId]);
   
-  // When selecting a session, switch to that OpenCode session
+  // When selecting a session, switch to that KronosCode session
   // NOTE: We intentionally do NOT change the global directory here to avoid
   // re-triggering loadGroups() which would cause groups to disappear
   const handleSessionSelect = React.useCallback((session: AgentGroupSession) => {
     selectSession(session.id);
     
-    // Switch to the OpenCode session
+    // Switch to the KronosCode session
     setCurrentSession(session.id);
   }, [selectSession, setCurrentSession]);
   
-  // Auto-select first session when group changes and sync OpenCode session
+  // Auto-select first session when group changes and sync KronosCode session
   React.useEffect(() => {
     if (group.sessions.length > 0) {
       const session = selectedSessionId 
@@ -68,7 +68,7 @@ export const AgentGroupDetail: React.FC<AgentGroupDetailProps> = ({
         : group.sessions[0];
       
       if (session) {
-        // Always ensure the OpenCode session is synced
+        // Always ensure the KronosCode session is synced
         if (session.id !== currentSessionId) {
           setCurrentSession(session.id);
         }
@@ -81,7 +81,7 @@ export const AgentGroupDetail: React.FC<AgentGroupDetailProps> = ({
     }
   }, [group.name, group.sessions, selectedSessionId, currentSessionId, selectSession, setCurrentSession]);
 
-  // Check if the current OpenCode session matches the selected agent group session
+  // Check if the current KronosCode session matches the selected agent group session
   const isSessionSynced = selectedSession?.id === currentSessionId;
 
   const handleCopyWorktreePath = React.useCallback(() => {

@@ -1,4 +1,4 @@
-import type { Agent } from '@opencode-ai/sdk/v2';
+import type { Agent } from '@kronoscode-ai/sdk/v2';
 
 export type MobileControlsPanel = 'model' | 'agent' | 'variant' | null;
 

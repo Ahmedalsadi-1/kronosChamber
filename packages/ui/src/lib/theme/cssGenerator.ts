@@ -165,7 +165,7 @@ export class CSSVariableGenerator {
   apply(theme: Theme): void {
     const cssVars = this.generate(theme);
     const style = document.createElement('style');
-    style.id = 'opencode-theme-variables';
+    style.id = 'kronoscode-theme-variables';
 
     let styleContent = '';
     if (theme.metadata.variant === 'dark') {
@@ -182,7 +182,7 @@ export class CSSVariableGenerator {
 
     style.textContent = styleContent;
 
-    const existing = document.getElementById('opencode-theme-variables');
+    const existing = document.getElementById('kronoscode-theme-variables');
     if (existing) {
       existing.remove();
     }

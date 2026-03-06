@@ -308,7 +308,7 @@ export interface GitWorktreeValidationResult {
 
 export interface CreateGitWorktreePayload {
   mode?: 'new' | 'existing';
-  /** Worktree folder name (falls back to OpenCode name generation when omitted). */
+  /** Worktree folder name (falls back to KronosCode name generation when omitted). */
   worktreeName?: string;
   /** Backward-compatible alias for worktreeName. */
   name?: string;
@@ -503,7 +503,11 @@ export interface SettingsPayload {
   darkThemeId?: string;
   lastDirectory?: string;
   homeDirectory?: string;
-  opencodeBinary?: string;
+  kronoscodeBinary?: string;
+  aiBrowserEnabled?: boolean;
+  agentMode?: 'off' | 'e2b' | 'openbrowser' | 'desktop-browser';
+  agentModeByProject?: Record<string, 'e2b' | 'openbrowser' | 'desktop-browser'>;
+  browserOpenAtStartup?: boolean;
   projects?: ProjectEntry[];
   activeProjectId?: string;
   approvedDirectories?: string[];
@@ -541,7 +545,7 @@ export interface SettingsAPI {
   load(): Promise<SettingsLoadResult>;
   save(changes: Partial<SettingsPayload>): Promise<SettingsPayload>;
 
-  restartOpenCode?: () => Promise<{ restarted: boolean }>;
+  restartKronosCode?: () => Promise<{ restarted: boolean }>;
 }
 
 export interface DirectoryPermissionRequest {
@@ -614,6 +618,49 @@ export interface PushAPI {
   subscribe(payload: PushSubscribePayload): Promise<{ ok: true } | null>;
   unsubscribe(payload: PushUnsubscribePayload): Promise<{ ok: true } | null>;
   setVisibility(payload: { visible: boolean }): Promise<{ ok: true } | null>;
+}
+
+export type InterconnectStateType =
+  | 'healthy'
+  | 'degraded'
+  | 'reconnecting'
+  | 'fallback-local'
+  | 'auth-required'
+  | 'offline';
+
+export interface InterconnectStatus {
+  state: InterconnectStateType;
+  reason?: string | null;
+  host?: string | null;
+  retryCount?: number;
+  relayMode?: 'desktop-relay' | 'direct-sse';
+  lastEventAt?: number | null;
+}
+
+export interface InterconnectSnapshot {
+  status: InterconnectStatus;
+  lastEventId?: string | null;
+  lastSuccessEventId?: string | null;
+  lastHostDecision?: string | null;
+  serverState?: {
+    health?: Record<string, unknown>;
+    statusSessions?: Record<string, unknown>;
+    attentionSessions?: Record<string, unknown>;
+    activitySessions?: Record<string, unknown>;
+    serverTime?: number;
+  } | null;
+}
+
+export interface InterconnectEvent {
+  type: string;
+  properties?: Record<string, unknown>;
+}
+
+export interface InterconnectAPI {
+  getState(): Promise<InterconnectSnapshot | null>;
+  subscribeStatus(listener: (status: InterconnectStatus) => void): () => void;
+  subscribeEvents(listener: (event: InterconnectEvent) => void): () => void;
+  forceReconnect(reason?: string): Promise<boolean>;
 }
 
 export type GitHubUserSummary = {
@@ -914,6 +961,7 @@ export interface RuntimeAPIs {
   notifications: NotificationsAPI;
   github?: GitHubAPI;
   push?: PushAPI;
+  interconnect?: InterconnectAPI;
   diagnostics?: DiagnosticsAPI;
   tools: ToolsAPI;
   editor?: EditorAPI;
@@ -941,7 +989,7 @@ export interface SkillsCatalogSource {
 export interface SkillsCatalogItemInstalledBadge {
   isInstalled: boolean;
   scope?: 'user' | 'project';
-  source?: 'opencode' | 'agents' | 'claude';
+  source?: 'kronoscode' | 'agents' | 'claude';
 }
 
 export interface ClawdHubSkillMetadata {
@@ -1020,7 +1068,7 @@ export interface SkillsInstallRequest {
   subpath?: string;
   gitIdentityId?: string;
   scope: 'user' | 'project';
-  targetSource?: 'opencode' | 'agents';
+  targetSource?: 'kronoscode' | 'agents';
   selections: SkillsInstallSelection[];
   conflictPolicy?: 'prompt' | 'skipAll' | 'overwriteAll';
   conflictDecisions?: Record<string, 'skip' | 'overwrite'>;
@@ -1029,12 +1077,12 @@ export interface SkillsInstallRequest {
 export type SkillsInstallError = SkillsRepoScanError | {
   kind: 'conflicts';
   message: string;
-  conflicts: Array<{ skillName: string; scope: 'user' | 'project'; source?: 'opencode' | 'agents' }>;
+  conflicts: Array<{ skillName: string; scope: 'user' | 'project'; source?: 'kronoscode' | 'agents' }>;
 };
 
 export interface SkillsInstallResponse {
   ok: boolean;
-  installed?: Array<{ skillName: string; scope: 'user' | 'project'; source?: 'opencode' | 'agents' }>;
+  installed?: Array<{ skillName: string; scope: 'user' | 'project'; source?: 'kronoscode' | 'agents' }>;
   skipped?: Array<{ skillName: string; reason: string }>;
   error?: SkillsInstallError;
   requiresReload?: boolean;

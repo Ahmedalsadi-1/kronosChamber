@@ -1,4 +1,4 @@
-import type { Session, Message, Part } from "@opencode-ai/sdk/v2";
+import type { Session, Message, Part } from "@kronoscode-ai/sdk/v2";
 import type { PermissionRequest, PermissionResponse } from "@/types/permission";
 import type { QuestionRequest } from "@/types/question";
 
@@ -173,7 +173,7 @@ export interface SessionStore {
 
     sessionAgentEditModes: Map<string, Map<string, EditPermissionMode>>;
 
-    // Server-owned session status (mirrors OpenCode SessionStatus: busy|retry|idle).
+    // Server-owned session status (mirrors KronosCode SessionStatus: busy|retry|idle).
     // Use as the single source of truth for "assistant working" UI.
     // confirmedAt: timestamp when idle was confirmed locally (prevents race with server polling)
     sessionStatus?: Map<
@@ -278,11 +278,11 @@ export interface SessionStore {
     analyzeAndSaveExternalSessionChoices: (sessionId: string, agents: Array<{ name: string; [key: string]: unknown }>) => Promise<Map<string, { providerId: string; modelId: string; timestamp: number }>>;
 
 
-    isOpenChamberCreatedSession: (sessionId: string) => boolean;
+    isKronosChamberCreatedSession: (sessionId: string) => boolean;
 
-    markSessionAsOpenChamberCreated: (sessionId: string) => void;
+    markSessionAsKronosChamberCreated: (sessionId: string) => void;
 
-    initializeNewOpenChamberSession: (sessionId: string, agents: Array<{ name: string; [key: string]: unknown }>) => void;
+    initializeNewKronosChamberSession: (sessionId: string, agents: Array<{ name: string; [key: string]: unknown }>) => void;
 
     setWorktreeMetadata: (sessionId: string, metadata: import('@/types/worktree').WorktreeMetadata | null) => void;
     getWorktreeMetadata: (sessionId: string) => import('@/types/worktree').WorktreeMetadata | undefined;

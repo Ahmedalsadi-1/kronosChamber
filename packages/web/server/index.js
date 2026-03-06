@@ -36,6 +36,16 @@ const MODELS_METADATA_CACHE_TTL = 5 * 60 * 1000;
 const CLIENT_RELOAD_DELAY_MS = 800;
 const OPEN_CODE_READY_GRACE_MS = 12000;
 const LONG_REQUEST_TIMEOUT_MS = 4 * 60 * 1000;
+const AGENT_MODE_ALLOWED_VALUES = new Set(['off', 'e2b', 'openbrowser', 'desktop-browser']);
+const DEFAULT_AGENT_MODE = 'off';
+const AGENT_MODE_TASK_TTL_MS = 30 * 60 * 1000;
+const AGENT_MODE_TASK_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.OPENCHAMBER_AGENT_MODE_TIMEOUT_MS);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return 5 * 60 * 1000;
+  }
+  return Math.max(5000, Math.min(30 * 60 * 1000, Math.round(raw)));
+})();
 const fsPromises = fs.promises;
 const DEFAULT_FILE_SEARCH_LIMIT = 60;
 const MAX_FILE_SEARCH_LIMIT = 400;
@@ -55,6 +65,7 @@ const FILE_SEARCH_EXCLUDED_DIRS = new Set([
 
 // Lock to prevent race conditions in persistSettings
 let persistSettingsLock = Promise.resolve();
+const agentModeTasks = new Map();
 
 const normalizeDirectoryPath = (value) => {
   if (typeof value !== 'string') {
@@ -75,6 +86,519 @@ const normalizeDirectoryPath = (value) => {
   }
 
   return trimmed;
+};
+
+const normalizeAgentModeSetting = (value) => {
+  if (typeof value !== 'string') {
+    return DEFAULT_AGENT_MODE;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (AGENT_MODE_ALLOWED_VALUES.has(normalized)) {
+    return normalized;
+  }
+  return DEFAULT_AGENT_MODE;
+};
+
+const isSupportedAgentMode = (value) => {
+  if (typeof value !== 'string') return false;
+  return AGENT_MODE_ALLOWED_VALUES.has(value);
+};
+
+const extractCommandBinary = (command) => {
+  if (typeof command !== 'string') return '';
+  const trimmed = command.trim();
+  if (!trimmed) return '';
+
+  if (trimmed.startsWith('"')) {
+    const end = trimmed.indexOf('"', 1);
+    if (end > 1) {
+      return trimmed.slice(1, end);
+    }
+  }
+
+  if (trimmed.startsWith('\'')) {
+    const end = trimmed.indexOf('\'', 1);
+    if (end > 1) {
+      return trimmed.slice(1, end);
+    }
+  }
+
+  return trimmed.split(/\s+/)[0] || '';
+};
+
+const isCommandOnPath = (command) => {
+  const binary = extractCommandBinary(command);
+  if (!binary) return false;
+
+  try {
+    const lookup = process.platform === 'win32' ? 'where' : 'which';
+    const result = spawnSync(lookup, [binary], { stdio: 'ignore' });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+};
+
+const truncateText = (value, maxLength = 12000) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength)}\n...[truncated ${value.length - maxLength} chars]`;
+};
+
+const normalizeOptionalString = (value) => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const resolveAgentModeConnectorConfig = (mode) => {
+  if (mode === 'desktop-browser') {
+    return { mode, apiUrl: null, command: null };
+  }
+
+  if (mode === 'e2b') {
+    const apiUrl =
+      normalizeOptionalString(process.env.OPENCHAMBER_E2B_API_URL) ||
+      normalizeOptionalString(process.env.OPENCHAMBER_AGENT_MODE_E2B_API_URL);
+    const command =
+      normalizeOptionalString(process.env.OPENCHAMBER_E2B_RUNNER_CMD) ||
+      normalizeOptionalString(process.env.OPENCHAMBER_AGENT_MODE_E2B_COMMAND) ||
+      'open-computer-use';
+    return { mode, apiUrl: apiUrl || null, command };
+  }
+
+  const apiUrl =
+    normalizeOptionalString(process.env.OPENCHAMBER_OPENBROWSER_API_URL) ||
+    normalizeOptionalString(process.env.OPENCHAMBER_AGENT_MODE_OPENBROWSER_API_URL);
+  const command =
+    normalizeOptionalString(process.env.OPENCHAMBER_OPENBROWSER_RUNNER_CMD) ||
+    normalizeOptionalString(process.env.OPENCHAMBER_AGENT_MODE_OPENBROWSER_COMMAND) ||
+    'openbrowser';
+  return { mode, apiUrl: apiUrl || null, command };
+};
+
+const buildAgentModeConnectorStatus = (mode) => {
+  if (mode === 'desktop-browser') {
+    return {
+      mode,
+      provider: 'desktop',
+      available: true,
+      apiConfigured: false,
+      command: null,
+      commandAvailable: true,
+      endpoint: null,
+    };
+  }
+
+  const config = resolveAgentModeConnectorConfig(mode);
+  const commandAvailable = Boolean(config.command && isCommandOnPath(config.command));
+  const provider = config.apiUrl ? 'api' : (commandAvailable ? 'command' : 'none');
+
+  return {
+    mode,
+    provider,
+    available: provider !== 'none',
+    apiConfigured: Boolean(config.apiUrl),
+    command: config.command || null,
+    commandAvailable,
+    endpoint: config.apiUrl || null,
+  };
+};
+
+const buildAgentModeTaskPayload = (task) => ({
+  taskID: task.taskID,
+  mode: task.mode,
+  prompt: task.prompt,
+  sessionID: task.sessionID || null,
+  providerID: task.providerID || null,
+  modelID: task.modelID || null,
+  agentName: task.agentName || null,
+  background: true,
+  startedAt: task.startedAt || Date.now(),
+});
+
+const AGENT_MODE_SESSION_ID_KEYS = [
+  'runtimeSessionID',
+  'runtime_session_id',
+  'sessionID',
+  'sessionId',
+  'taskSessionID',
+  'taskSessionId',
+];
+
+const AGENT_MODE_LIVE_URL_KEYS = [
+  'liveUrl',
+  'live_url',
+  'streamUrl',
+  'stream_url',
+  'url',
+];
+
+const readFirstStringField = (source, keys) => {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+};
+
+const normalizeLogLines = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter((entry) => entry.length > 0)
+      .slice(0, 120);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .slice(0, 120);
+  }
+
+  return [];
+};
+
+const normalizeArtifacts = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry, index) => {
+      if (typeof entry === 'string') {
+        const trimmed = entry.trim();
+        if (!trimmed) {
+          return null;
+        }
+        return {
+          id: `artifact-${index + 1}`,
+          name: null,
+          path: trimmed,
+          url: null,
+          mimeType: null,
+          size: null,
+        };
+      }
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+
+      const candidate = entry;
+      const id = typeof candidate.id === 'string' && candidate.id.trim().length > 0
+        ? candidate.id.trim()
+        : `artifact-${index + 1}`;
+      const name = typeof candidate.name === 'string' && candidate.name.trim().length > 0
+        ? candidate.name.trim()
+        : null;
+      const path = typeof candidate.path === 'string' && candidate.path.trim().length > 0
+        ? candidate.path.trim()
+        : null;
+      const url = typeof candidate.url === 'string' && candidate.url.trim().length > 0
+        ? candidate.url.trim()
+        : null;
+      const mimeType = typeof candidate.mimeType === 'string' && candidate.mimeType.trim().length > 0
+        ? candidate.mimeType.trim()
+        : null;
+      const size = typeof candidate.size === 'number' && Number.isFinite(candidate.size)
+        ? candidate.size
+        : null;
+
+      if (!path && !url) {
+        return null;
+      }
+
+      return {
+        id,
+        name,
+        path,
+        url,
+        mimeType,
+        size,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 200);
+};
+
+const parseStructuredTaskOutput = (value) => {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const collectAgentModeRuntimeMetadata = (executionResult) => {
+  const objects = [];
+  if (executionResult && typeof executionResult === 'object') {
+    objects.push(executionResult);
+    if (executionResult.result && typeof executionResult.result === 'object') {
+      objects.push(executionResult.result);
+    }
+    if (executionResult.structured && typeof executionResult.structured === 'object') {
+      objects.push(executionResult.structured);
+    }
+    if (executionResult.data && typeof executionResult.data === 'object') {
+      objects.push(executionResult.data);
+    }
+  }
+
+  let runtimeSessionID = null;
+  let liveUrl = null;
+  const logs = [];
+  const artifacts = [];
+
+  for (const candidate of objects) {
+    if (!runtimeSessionID) {
+      runtimeSessionID = readFirstStringField(candidate, AGENT_MODE_SESSION_ID_KEYS);
+    }
+    if (!liveUrl) {
+      liveUrl = readFirstStringField(candidate, AGENT_MODE_LIVE_URL_KEYS);
+    }
+
+    const candidateLogs = normalizeLogLines(candidate.logs || candidate.log);
+    if (candidateLogs.length > 0) {
+      logs.push(...candidateLogs);
+    }
+
+    const candidateArtifacts = normalizeArtifacts(
+      candidate.artifacts || candidate.files || candidate.outputs,
+    );
+    if (candidateArtifacts.length > 0) {
+      artifacts.push(...candidateArtifacts);
+    }
+  }
+
+  if (typeof executionResult?.stdout === 'string' && executionResult.stdout.trim().length > 0) {
+    logs.push(...normalizeLogLines(executionResult.stdout));
+  }
+  if (typeof executionResult?.stderr === 'string' && executionResult.stderr.trim().length > 0) {
+    logs.push(...normalizeLogLines(executionResult.stderr));
+  }
+
+  return {
+    runtimeSessionID,
+    liveUrl,
+    logs: Array.from(new Set(logs)).slice(0, 120),
+    artifacts: Array.from(
+      new Map(
+        artifacts.map((artifact) => [
+          `${artifact.path || ''}|${artifact.url || ''}|${artifact.name || ''}`,
+          artifact,
+        ]),
+      ).values(),
+    ).slice(0, 120),
+  };
+};
+
+const serializeAgentModeTask = (task) => ({
+  taskID: task.taskID,
+  mode: task.mode,
+  status: task.status,
+  success: typeof task.success === 'boolean' ? task.success : null,
+  prompt: task.prompt,
+  sessionID: task.sessionID ?? null,
+  providerID: task.providerID ?? null,
+  modelID: task.modelID ?? null,
+  agentName: task.agentName ?? null,
+  connector: task.connector ?? null,
+  runtimeSessionID: task.runtimeSessionID ?? null,
+  liveUrl: task.liveUrl ?? null,
+  artifacts: Array.isArray(task.artifacts) ? task.artifacts : [],
+  logs: Array.isArray(task.logs) ? task.logs : [],
+  error: task.error ?? null,
+  result: task.result ?? null,
+  createdAt: task.createdAt ?? null,
+  startedAt: task.startedAt ?? null,
+  finishedAt: task.finishedAt ?? null,
+  updatedAt: task.updatedAt ?? null,
+});
+
+const broadcastAgentModeTaskEvent = (task, reason = 'updated') => {
+  if (!task || typeof task !== 'object' || uiNotificationClients.size === 0) {
+    return;
+  }
+
+  const payload = {
+    type: 'openchamber:agent-mode-task',
+    properties: {
+      task: serializeAgentModeTask(task),
+      reason,
+      timestamp: Date.now(),
+    },
+  };
+
+  for (const res of uiNotificationClients) {
+    try {
+      writeSseEvent(res, payload);
+    } catch {
+      // ignore
+    }
+  }
+};
+
+const runAgentModeApiTask = async (endpointUrl, payload) => {
+  const target = (() => {
+    const trimmed = endpointUrl.trim().replace(/\/+$/, '');
+    if (trimmed.endsWith('/task')) {
+      return trimmed;
+    }
+    return `${trimmed}/task`;
+  })();
+
+  const response = await fetch(target, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/plain;q=0.9',
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(AGENT_MODE_TASK_TIMEOUT_MS),
+  });
+
+  const rawBody = await response.text().catch(() => '');
+  let parsedBody = null;
+  if (rawBody) {
+    try {
+      parsedBody = JSON.parse(rawBody);
+    } catch {
+      parsedBody = null;
+    }
+  }
+
+  if (!response.ok) {
+    const upstreamMessage =
+      parsedBody && typeof parsedBody === 'object' && typeof parsedBody.error === 'string'
+        ? parsedBody.error
+        : rawBody || `HTTP ${response.status}`;
+    throw new Error(`Connector API failed (${response.status}): ${truncateText(upstreamMessage, 500)}`);
+  }
+
+  return {
+    type: 'api',
+    endpoint: target,
+    status: response.status,
+    result: parsedBody ?? rawBody,
+    rawBody: truncateText(rawBody, 24000),
+  };
+};
+
+const runAgentModeCommandTask = async (command, payload) => {
+  const shell = process.env.SHELL || (process.platform === 'win32' ? 'cmd.exe' : '/bin/sh');
+  const shellFlag = process.platform === 'win32' ? '/c' : '-lc';
+
+  return await new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+
+    const child = spawn(shell, [shellFlag, command], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        OPENCHAMBER_AGENT_MODE: payload.mode,
+        OPENCHAMBER_AGENT_PROMPT: payload.prompt,
+        OPENCHAMBER_AGENT_TASK_ID: payload.taskID,
+        OPENCHAMBER_AGENT_SESSION_ID: payload.sessionID || '',
+        OPENCHAMBER_AGENT_PROVIDER_ID: payload.providerID || '',
+        OPENCHAMBER_AGENT_MODEL_ID: payload.modelID || '',
+        OPENCHAMBER_AGENT_NAME: payload.agentName || '',
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill('SIGKILL');
+      } catch {
+      }
+    }, AGENT_MODE_TASK_TIMEOUT_MS);
+
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+
+    child.on('close', (code, signal) => {
+      clearTimeout(timeout);
+      const exitCode = typeof code === 'number' ? code : -1;
+      const trimmedStdout = stdout.trim();
+      const trimmedStderr = stderr.trim();
+      const structured = parseStructuredTaskOutput(trimmedStdout);
+      const output = {
+        type: 'command',
+        command,
+        exitCode,
+        signal: signal || null,
+        stdout: truncateText(trimmedStdout, 24000),
+        stderr: truncateText(trimmedStderr, 12000),
+        structured,
+      };
+
+      if (timedOut) {
+        reject(new Error(`Connector command timed out after ${AGENT_MODE_TASK_TIMEOUT_MS}ms`));
+        return;
+      }
+
+      if (exitCode !== 0) {
+        const failure = trimmedStderr || trimmedStdout || `Connector command failed with exit code ${exitCode}`;
+        reject(new Error(truncateText(failure, 1000)));
+        return;
+      }
+
+      resolve(output);
+    });
+
+    try {
+      child.stdin?.write(`${JSON.stringify(payload)}\n`);
+      child.stdin?.end();
+    } catch {
+      try {
+        child.stdin?.end();
+      } catch {
+      }
+    }
+  });
+};
+
+const pruneAgentModeTasks = () => {
+  const now = Date.now();
+  for (const [taskId, task] of agentModeTasks.entries()) {
+    if (!task || typeof task !== 'object') {
+      agentModeTasks.delete(taskId);
+      continue;
+    }
+    const updatedAt = typeof task.updatedAt === 'number' ? task.updatedAt : 0;
+    if (updatedAt > 0 && now - updatedAt > AGENT_MODE_TASK_TTL_MS) {
+      agentModeTasks.delete(taskId);
+    }
+  }
 };
 
 const OPENCHAMBER_USER_CONFIG_ROOT = path.join(os.homedir(), '.config', 'openchamber');
@@ -258,7 +782,7 @@ const resolveWorkspacePath = (targetPath, baseDirectory) => {
     return { ok: true, base: resolvedBase, resolved };
   }
 
-  // Allow writing OpenChamber per-project config under ~/.config/openchamber.
+  // Allow writing KronosChamber per-project config under ~/.config/openchamber.
   // LEGACY_PROJECT_CONFIG: migration target root; allowed outside workspace.
   if (isPathWithinRoot(resolved, OPENCHAMBER_USER_CONFIG_ROOT)) {
     return { ok: true, base: path.resolve(OPENCHAMBER_USER_CONFIG_ROOT), resolved };
@@ -1396,6 +1920,27 @@ const sanitizeSettingsUpdate = (payload) => {
     const normalized = normalizeDirectoryPath(candidate.opencodeBinary).trim();
     result.opencodeBinary = normalized;
   }
+  if (typeof candidate.aiBrowserEnabled === 'boolean') {
+    result.aiBrowserEnabled = candidate.aiBrowserEnabled;
+  }
+  if (typeof candidate.agentMode === 'string') {
+    result.agentMode = normalizeAgentModeSetting(candidate.agentMode);
+  }
+  if (candidate.agentModeByProject && typeof candidate.agentModeByProject === 'object') {
+    const map = {};
+    for (const [rawKey, rawValue] of Object.entries(candidate.agentModeByProject)) {
+      const key = typeof rawKey === 'string' ? rawKey.trim() : '';
+      if (!key) continue;
+      const value = normalizeAgentModeSetting(rawValue);
+      if (value === 'e2b' || value === 'openbrowser' || value === 'desktop-browser') {
+        map[key] = value;
+      }
+    }
+    result.agentModeByProject = map;
+  }
+  if (typeof candidate.browserOpenAtStartup === 'boolean') {
+    result.browserOpenAtStartup = candidate.browserOpenAtStartup;
+  }
   if (Array.isArray(candidate.projects)) {
     const projects = sanitizeProjects(candidate.projects);
     if (projects) {
@@ -2327,23 +2872,75 @@ const sendPushToAllUiSessions = async (payload, options = {}) => {
 
 let pushInitialized = false;
 
-
-
+const UI_VISIBILITY_TTL_MS = 30 * 1000;
 const uiVisibilityByToken = new Map();
-let globalVisibilityState = false;
 
-const updateUiVisibility = (token, visible) => {
+const normalizeHeaderValue = (value) => {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value.trim();
+  }
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => typeof entry === 'string' && entry.trim().length > 0);
+    return typeof first === 'string' ? first.trim() : null;
+  }
+  return null;
+};
+
+const resolveRequestClientIdentity = (req) => {
+  const clientId = normalizeHeaderValue(req.headers['x-client-id']) || req.ip || 'anonymous';
+  const windowId = normalizeHeaderValue(req.headers['x-window-id']);
+  const key = windowId ? `${clientId}:${windowId}` : clientId;
+  return { clientId, windowId, key };
+};
+
+const pruneUiVisibility = () => {
+  const now = Date.now();
+  for (const [key, value] of uiVisibilityByToken.entries()) {
+    if (!value || now - value.updatedAt > UI_VISIBILITY_TTL_MS) {
+      uiVisibilityByToken.delete(key);
+    }
+  }
+};
+
+const resolveVisibilityKey = (token, identity) => {
+  const suffix = identity?.key || 'anonymous';
+  return `${token}:${suffix}`;
+};
+
+const updateUiVisibility = (token, visible, identity) => {
   if (!token) return;
   const now = Date.now();
   const nextVisible = Boolean(visible);
-  uiVisibilityByToken.set(token, { visible: nextVisible, updatedAt: now });
-  globalVisibilityState = nextVisible;
-
+  const key = resolveVisibilityKey(token, identity);
+  uiVisibilityByToken.set(key, {
+    token,
+    clientId: identity?.clientId || 'anonymous',
+    windowId: identity?.windowId || null,
+    visible: nextVisible,
+    updatedAt: now,
+  });
+  pruneUiVisibility();
 };
 
-const isAnyUiVisible = () => globalVisibilityState === true;
+const isAnyUiVisible = () => {
+  pruneUiVisibility();
+  for (const value of uiVisibilityByToken.values()) {
+    if (value?.visible === true) {
+      return true;
+    }
+  }
+  return false;
+};
 
-const isUiVisible = (token) => uiVisibilityByToken.get(token)?.visible === true;
+const isUiVisible = (token) => {
+  pruneUiVisibility();
+  for (const value of uiVisibilityByToken.values()) {
+    if (value?.token === token && value?.visible === true) {
+      return true;
+    }
+  }
+  return false;
+};
 
 // Session activity tracking (mirrors desktop session_activity.rs)
 const sessionActivityPhases = new Map(); // sessionId -> { phase: 'idle'|'busy'|'cooldown', updatedAt: number }
@@ -2522,11 +3119,17 @@ const markSessionUnviewed = (sessionId, clientId) => {
   state.viewedByClients.delete(clientId);
 };
 
-const markUserMessageSent = (sessionId) => {
+const markUserMessageSent = (sessionId, clientId) => {
   const state = getOrCreateAttentionState(sessionId);
   if (!state) return;
 
   state.lastUserMessageAt = Date.now();
+  if (typeof clientId === 'string' && clientId.trim().length > 0) {
+    state.viewedByClients.add(clientId.trim());
+    if (state.needsAttention) {
+      state.needsAttention = false;
+    }
+  }
 };
 
 const getSessionAttentionSnapshot = () => {
@@ -3542,6 +4145,37 @@ function normalizeOpencodeBinarySetting(raw) {
   return trimmed;
 }
 
+function normalizeAiBrowserSetting(raw) {
+  if (typeof raw !== 'boolean') {
+    return null;
+  }
+  return raw;
+}
+
+async function applyAiBrowserSettingFromSettings() {
+  try {
+    const settings = await readSettingsFromDiskMigrated();
+    if (!settings || typeof settings !== 'object') {
+      return null;
+    }
+    if (!Object.prototype.hasOwnProperty.call(settings, 'aiBrowserEnabled')) {
+      return null;
+    }
+
+    const normalized = normalizeAiBrowserSetting(settings.aiBrowserEnabled);
+    if (normalized === null) {
+      return null;
+    }
+
+    process.env.OPENCODE_ENABLE_AI_BROWSER = normalized ? 'true' : 'false';
+    return normalized;
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
 async function applyOpencodeBinaryFromSettings() {
   try {
     const settings = await readSettingsFromDiskMigrated();
@@ -3573,6 +4207,14 @@ async function applyOpencodeBinaryFromSettings() {
     const raw = typeof settings.opencodeBinary === 'string' ? settings.opencodeBinary.trim() : '';
     if (raw) {
       console.warn(`Configured settings.opencodeBinary is not executable: ${raw}`);
+    }
+
+    // Invalid configured override: clear previously applied settings-based override
+    // so PATH/env detection can take over.
+    if (resolvedOpencodeBinarySource === 'settings') {
+      delete process.env.OPENCODE_BINARY;
+      resolvedOpencodeBinary = null;
+      resolvedOpencodeBinarySource = null;
     }
   } catch {
     // ignore
@@ -4783,6 +5425,7 @@ async function startOpenCode() {
   );
 
   await applyOpencodeBinaryFromSettings();
+  await applyAiBrowserSettingFromSettings();
   ensureOpencodeCliEnv();
   const openCodePassword = await ensureLocalOpenCodeServerPassword({
     rotateManaged: true,
@@ -5105,6 +5748,7 @@ async function refreshOpenCodeAfterConfigChange(reason, options = {}) {
   // Settings might include a new opencodeBinary; drop cache before restart.
   resolvedOpencodeBinary = null;
   await applyOpencodeBinaryFromSettings();
+  await applyAiBrowserSettingFromSettings();
 
   await restartOpenCode();
 
@@ -5144,6 +5788,7 @@ function setupProxy(app) {
     if (
       req.path.startsWith('/themes/custom') ||
       req.path.startsWith('/push') ||
+      req.path.startsWith('/agent-mode') ||
       req.path.startsWith('/config/agents') ||
       req.path.startsWith('/config/opencode-resolution') ||
       req.path.startsWith('/config/settings') ||
@@ -5318,8 +5963,8 @@ function setupProxy(app) {
     }
   };
 
-  app.get('/api/event', forwardSseRequest);
-  app.get('/api/global/event', forwardSseRequest);
+  // Canonical SSE routes are registered in main() so they can keep
+  // OpenChamber-specific event fan-out behavior in one place.
 
   app.use('/api', (_req, _res, next) => {
     ensureOpenCodeApiPrefix();
@@ -5329,6 +5974,7 @@ function setupProxy(app) {
   app.use('/api', (req, res, next) => {
     if (
       req.path.startsWith('/themes/custom') ||
+      req.path.startsWith('/agent-mode') ||
       req.path.startsWith('/config/agents') ||
       req.path.startsWith('/config/opencode-resolution') ||
       req.path.startsWith('/config/settings') ||
@@ -5614,7 +6260,7 @@ async function main(options = {}) {
     exitOnShutdown = options.exitOnShutdown;
   }
 
-  console.log(`Starting OpenChamber on port ${port === 0 ? 'auto' : port}`);
+  console.log(`Starting KronosChamber on port ${port === 0 ? 'auto' : port}`);
 
   // Check macOS Say TTS availability once at startup
   let sayTTSCapability = { available: false, voices: [], reason: 'Not checked' };
@@ -5690,6 +6336,7 @@ async function main(options = {}) {
       openCodeApiPrefix: '',
       openCodeApiPrefixDetected: true,
       isOpenCodeReady,
+      openCodeAiBrowserEnabled: process.env.OPENCODE_ENABLE_AI_BROWSER === 'true',
       lastOpenCodeError,
       opencodeBinaryResolved: resolvedOpencodeBinary || null,
       opencodeBinarySource: resolvedOpencodeBinarySource || null,
@@ -5715,6 +6362,8 @@ async function main(options = {}) {
       req.path.startsWith('/api/config/skills') ||
       req.path.startsWith('/api/fs') ||
       req.path.startsWith('/api/git') ||
+      req.path.startsWith('/api/agent-mode') ||
+      req.path.startsWith('/api/runtime') ||
       req.path.startsWith('/api/prompts') ||
       req.path.startsWith('/api/terminal') ||
       req.path.startsWith('/api/opencode') ||
@@ -5861,7 +6510,8 @@ async function main(options = {}) {
     }
 
     const visible = req.body && typeof req.body === 'object' ? req.body.visible : null;
-    updateUiVisibility(uiToken, visible === true);
+    const identity = resolveRequestClientIdentity(req);
+    updateUiVisibility(uiToken, visible === true, identity);
     res.json({ ok: true });
   });
 
@@ -5881,6 +6531,35 @@ async function main(options = {}) {
   // Used by UI on visibility restore to get accurate status without waiting for SSE
   app.get('/api/session-activity', (_req, res) => {
     res.json(getSessionActivitySnapshot());
+  });
+
+  app.get('/api/interconnect/state', (_req, res) => {
+    const serverTime = Date.now();
+    const health = {
+      status: 'ok',
+      openCodePort: openCodePort,
+      openCodeRunning: Boolean(openCodePort && isOpenCodeReady && !isRestartingOpenCode),
+      openCodeSecureConnection: isOpenCodeConnectionSecure(),
+      openCodeAuthSource: openCodeAuthSource || null,
+      isOpenCodeReady,
+      lastOpenCodeError,
+    };
+
+    res.json({
+      status: {
+        state: health.isOpenCodeReady ? 'healthy' : 'degraded',
+        reason: typeof lastOpenCodeError === 'string' && lastOpenCodeError.length > 0 ? lastOpenCodeError : null,
+        host: openCodePort ? `http://127.0.0.1:${openCodePort}` : null,
+        retryCount: 0,
+        relayMode: 'direct-sse',
+        lastEventAt: serverTime,
+      },
+      health,
+      statusSessions: getSessionStateSnapshot(),
+      attentionSessions: getSessionAttentionSnapshot(),
+      activitySessions: getSessionActivitySnapshot(),
+      serverTime,
+    });
   });
 
   // Voice token endpoint - returns OpenAI TTS availability status
@@ -6169,41 +6848,48 @@ async function main(options = {}) {
   // POST /api/sessions/:id/view - Client reports viewing this session
   app.post('/api/sessions/:id/view', (req, res) => {
     const sessionId = req.params.id;
-    const clientId = req.headers['x-client-id'] || req.ip || 'anonymous';
+    const identity = resolveRequestClientIdentity(req);
 
-    markSessionViewed(sessionId, clientId);
+    markSessionViewed(sessionId, identity.key);
 
     res.json({
       success: true,
       sessionId,
-      viewed: true
+      viewed: true,
+      clientId: identity.clientId,
+      windowId: identity.windowId,
     });
   });
 
   // POST /api/sessions/:id/unview - Client reports leaving this session
   app.post('/api/sessions/:id/unview', (req, res) => {
     const sessionId = req.params.id;
-    const clientId = req.headers['x-client-id'] || req.ip || 'anonymous';
+    const identity = resolveRequestClientIdentity(req);
 
-    markSessionUnviewed(sessionId, clientId);
+    markSessionUnviewed(sessionId, identity.key);
 
     res.json({
       success: true,
       sessionId,
-      viewed: false
+      viewed: false,
+      clientId: identity.clientId,
+      windowId: identity.windowId,
     });
   });
 
   // POST /api/sessions/:id/message-sent - User sent a message in this session
   app.post('/api/sessions/:id/message-sent', (req, res) => {
     const sessionId = req.params.id;
+    const identity = resolveRequestClientIdentity(req);
 
-    markUserMessageSent(sessionId);
+    markUserMessageSent(sessionId, identity.key);
 
     res.json({
       success: true,
       sessionId,
-      messageSent: true
+      messageSent: true,
+      clientId: identity.clientId,
+      windowId: identity.windowId,
     });
   });
 
@@ -6293,7 +6979,7 @@ async function main(options = {}) {
             timeout /t 2 /nobreak >nul
             ${updateCmd}
             if %ERRORLEVEL% EQU 0 (
-              echo Update successful, restarting OpenChamber...
+              echo Update successful, restarting KronosChamber...
               ${restartCmd}
             ) else (
               echo Update failed
@@ -6304,7 +6990,7 @@ async function main(options = {}) {
             sleep 2
             ${updateCmd}
             if [ $? -eq 0 ]; then
-              echo "Update successful, restarting OpenChamber..."
+              echo "Update successful, restarting KronosChamber..."
               ${restartCmd}
             else
               echo "Update failed"
@@ -6400,12 +7086,35 @@ async function main(options = {}) {
     }
   });
 
-  app.get('/api/global/event', async (req, res) => {
+  const proxyOpenCodeSse = async (req, res, options) => {
+    const startedAt = Date.now();
+    const scope = options?.scope === 'global' ? 'global' : 'session';
+    let endedBy = 'upstream-finished';
+    const sourceLabel = scope === 'global' ? '/global/event' : '/event';
+    let connectTimer = null;
+    let idleTimer = null;
+    let heartbeatTimer = null;
+    let upstreamReader = null;
+    let addedUiClient = false;
+    let lastEventAt = Date.now();
+    let bytesReceived = 0;
+
     let targetUrl;
     try {
-      targetUrl = new URL(buildOpenCodeUrl('/global/event', ''));
+      targetUrl = new URL(buildOpenCodeUrl(sourceLabel, ''));
     } catch {
       return res.status(503).json({ error: 'OpenCode service unavailable' });
+    }
+
+    if (scope === 'session') {
+      const headerDirectory = typeof req.get === 'function' ? req.get('x-opencode-directory') : null;
+      const directoryParam = Array.isArray(req.query.directory)
+        ? req.query.directory[0]
+        : req.query.directory;
+      const resolvedDirectory = headerDirectory || directoryParam || null;
+      if (typeof resolvedDirectory === 'string' && resolvedDirectory.trim().length > 0) {
+        targetUrl.searchParams.set('directory', resolvedDirectory.trim());
+      }
     }
 
     const headers = {
@@ -6421,237 +7130,173 @@ async function main(options = {}) {
     }
 
     const controller = new AbortController();
-    const cleanup = () => {
-      if (!controller.signal.aborted) {
-        controller.abort();
-      }
-    };
-
-    req.on('close', cleanup);
-    req.on('error', cleanup);
-
-    let upstream;
-    try {
-      upstream = await fetch(targetUrl.toString(), {
-        headers,
-        signal: controller.signal,
-      });
-    } catch (error) {
-      return res.status(502).json({ error: 'Failed to connect to OpenCode event stream' });
-    }
-
-    if (!upstream.ok || !upstream.body) {
-      return res.status(502).json({ error: `OpenCode event stream unavailable (${upstream.status})` });
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-
-    if (typeof res.flushHeaders === 'function') {
-      res.flushHeaders();
-    }
-
-    uiNotificationClients.add(res);
     const cleanupClient = () => {
-      uiNotificationClients.delete(res);
-    };
-    req.on('close', cleanupClient);
-    req.on('error', cleanupClient);
-
-    const heartbeatInterval = setInterval(() => {
-      writeSseEvent(res, { type: 'openchamber:heartbeat', timestamp: Date.now() });
-    }, 15000);
-
-    const decoder = new TextDecoder();
-    const reader = upstream.body.getReader();
-    let buffer = '';
-
-    const forwardBlock = (block) => {
-      if (!block) return;
-      res.write(`${block}
-
-`);
-      const payload = parseSseDataPayload(block);
-      // Cache session titles from session.updated/session.created events (global stream)
-      maybeCacheSessionInfoFromEvent(payload);
-
-      // Keep server-authoritative session state fresh even if the
-      // background watcher is disconnected.
-      if (payload && payload.type === 'session.status') {
-        const update = extractSessionStatusUpdate(payload);
-        if (update) {
-          updateSessionState(update.sessionId, update.type, update.eventId || `proxy-${Date.now()}`, {
-            attempt: update.attempt,
-            message: update.message,
-            next: update.next,
-          });
-        }
-      }
-
-      const transitions = deriveSessionActivityTransitions(payload);
-      if (transitions && transitions.length > 0) {
-        for (const activity of transitions) {
-          if (setSessionActivityPhase(activity.sessionId, activity.phase)) {
-            writeSseEvent(res, {
-              type: 'openchamber:session-activity',
-              properties: {
-                sessionId: activity.sessionId,
-                phase: activity.phase,
-              }
-            });
-          }
-        }
+      if (addedUiClient) {
+        uiNotificationClients.delete(res);
+        addedUiClient = false;
       }
     };
-
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-
-        let separatorIndex = buffer.indexOf('\n\n');
-        while (separatorIndex !== -1) {
-          const block = buffer.slice(0, separatorIndex);
-          buffer = buffer.slice(separatorIndex + 2);
-          forwardBlock(block);
-          separatorIndex = buffer.indexOf('\n\n');
-        }
-      }
-
-      if (buffer.trim().length > 0) {
-        forwardBlock(buffer.trim());
-      }
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        console.warn('SSE proxy stream error:', error);
-      }
-    } finally {
-      clearInterval(heartbeatInterval);
-      cleanupClient();
-      cleanup();
-      try {
-        res.end();
-      } catch {
-        // ignore
-      }
-    }
-  });
-
-  app.get('/api/event', async (req, res) => {
-    let targetUrl;
-    try {
-      targetUrl = new URL(buildOpenCodeUrl('/event', ''));
-    } catch {
-      return res.status(503).json({ error: 'OpenCode service unavailable' });
-    }
-
-    const headerDirectory = typeof req.get === 'function' ? req.get('x-opencode-directory') : null;
-    const directoryParam = Array.isArray(req.query.directory)
-      ? req.query.directory[0]
-      : req.query.directory;
-    const resolvedDirectory = headerDirectory || directoryParam || null;
-    if (typeof resolvedDirectory === 'string' && resolvedDirectory.trim().length > 0) {
-      targetUrl.searchParams.set('directory', resolvedDirectory.trim());
-    }
-
-    const headers = {
-      Accept: 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      ...getOpenCodeAuthHeaders(),
-    };
-
-    const lastEventId = req.header('Last-Event-ID');
-    if (typeof lastEventId === 'string' && lastEventId.length > 0) {
-      headers['Last-Event-ID'] = lastEventId;
-    }
-
-    const controller = new AbortController();
     const cleanup = () => {
-      if (!controller.signal.aborted) {
-        controller.abort();
+      if (connectTimer) {
+        clearTimeout(connectTimer);
+        connectTimer = null;
       }
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+        idleTimer = null;
+      }
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      cleanupClient();
+      req.off('close', onClientClose);
+      req.off('error', onClientError);
+    };
+    const resetIdleTimeout = () => {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+      }
+      idleTimer = setTimeout(() => {
+        endedBy = 'idle-timeout';
+        controller.abort();
+      }, 5 * 60 * 1000);
+    };
+    const onClientClose = () => {
+      endedBy = 'client-disconnect';
+      controller.abort();
+    };
+    const onClientError = () => {
+      endedBy = 'client-disconnect';
+      controller.abort();
     };
 
-    req.on('close', cleanup);
-    req.on('error', cleanup);
+    req.on('close', onClientClose);
+    req.on('error', onClientError);
 
-    let upstream;
+    const connectReason = req.headers['last-event-id'] ? 'reconnect-resume' : 'new-stream';
+    console.log(`[sse] connect scope=${scope} reason=${connectReason} path=${sourceLabel}`);
+
     try {
-      upstream = await fetch(targetUrl.toString(), {
+      connectTimer = setTimeout(() => {
+        endedBy = 'connect-timeout';
+        controller.abort();
+      }, 10 * 1000);
+
+      const upstream = await fetch(targetUrl.toString(), {
         headers,
         signal: controller.signal,
       });
-    } catch (error) {
-      return res.status(502).json({ error: 'Failed to connect to OpenCode event stream' });
-    }
 
-    if (!upstream.ok || !upstream.body) {
-      return res.status(502).json({ error: `OpenCode event stream unavailable (${upstream.status})` });
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-
-    if (typeof res.flushHeaders === 'function') {
-      res.flushHeaders();
-    }
-
-    const heartbeatInterval = setInterval(() => {
-      writeSseEvent(res, { type: 'openchamber:heartbeat', timestamp: Date.now() });
-    }, 15000);
-
-    const decoder = new TextDecoder();
-    const reader = upstream.body.getReader();
-    let buffer = '';
-
-    const forwardBlock = (block) => {
-      if (!block) return;
-      res.write(`${block}
-
-`);
-      const payload = parseSseDataPayload(block);
-      // Cache session titles from session.updated/session.created events (per-session stream)
-      maybeCacheSessionInfoFromEvent(payload);
-
-      if (payload && payload.type === 'session.status') {
-        const update = extractSessionStatusUpdate(payload);
-        if (update) {
-          updateSessionState(update.sessionId, update.type, update.eventId || `proxy-${Date.now()}`, {
-            attempt: update.attempt,
-            message: update.message,
-            next: update.next,
-          });
-        }
+      if (connectTimer) {
+        clearTimeout(connectTimer);
+        connectTimer = null;
       }
 
-      const transitions = deriveSessionActivityTransitions(payload);
-      if (transitions && transitions.length > 0) {
-        for (const activity of transitions) {
-          if (setSessionActivityPhase(activity.sessionId, activity.phase)) {
-            writeSseEvent(res, {
-              type: 'openchamber:session-activity',
-              properties: {
-                sessionId: activity.sessionId,
-                phase: activity.phase,
-              }
+      if (!upstream.ok || !upstream.body) {
+        cleanup();
+        return res.status(502).json({ error: `OpenCode event stream unavailable (${upstream.status})` });
+      }
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+
+      if (scope === 'global' || scope === 'session') {
+        uiNotificationClients.add(res);
+        addedUiClient = true;
+      }
+
+      // Emit stream lifecycle event for client-side failover detection
+      const lifecycleConnectEvent = {
+        type: 'openchamber:stream-lifecycle',
+        properties: {
+          action: 'connect',
+          reason: connectReason,
+          scope: scope,
+          timestamp: Date.now(),
+        },
+      };
+      writeSseEvent(res, lifecycleConnectEvent);
+      console.log(`[sse] lifecycle action=connect reason=${connectReason} scope=${scope}`);
+
+      resetIdleTimeout();
+      heartbeatTimer = setInterval(() => {
+        if (res.writableEnded || controller.signal.aborted) {
+          return;
+        }
+        const timeSinceLastEvent = Date.now() - lastEventAt;
+        writeSseEvent(res, {
+          type: 'openchamber:heartbeat',
+          timestamp: Date.now(),
+          properties: {
+            scope: scope,
+            timeSinceLastEventMs: timeSinceLastEvent,
+            streamHealth: timeSinceLastEvent > 30_000 ? 'degraded' : 'healthy',
+          },
+        });
+        resetIdleTimeout();
+      }, 15_000);
+
+      const decoder = new TextDecoder();
+      upstreamReader = upstream.body.getReader();
+      let buffer = '';
+
+      const forwardBlock = (block) => {
+        if (!block || res.writableEnded || controller.signal.aborted) return;
+        res.write(`${block}\n\n`);
+        lastEventAt = Date.now();
+        bytesReceived += block.length;
+        resetIdleTimeout();
+
+        const payload = parseSseDataPayload(block);
+        maybeCacheSessionInfoFromEvent(payload);
+
+        if (payload && payload.type === 'session.status') {
+          const update = extractSessionStatusUpdate(payload);
+          if (update) {
+            updateSessionState(update.sessionId, update.type, update.eventId || `proxy-${Date.now()}`, {
+              attempt: update.attempt,
+              message: update.message,
+              next: update.next,
             });
           }
         }
-      }
-    };
 
-    try {
+        const transitions = deriveSessionActivityTransitions(payload);
+        if (transitions && transitions.length > 0) {
+          for (const activity of transitions) {
+            if (setSessionActivityPhase(activity.sessionId, activity.phase)) {
+              writeSseEvent(res, {
+                type: 'openchamber:session-activity',
+                properties: {
+                  sessionId: activity.sessionId,
+                  phase: activity.phase,
+                }
+              });
+            }
+          }
+        }
+      };
+
       while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+        const { value, done } = await upstreamReader.read();
+        if (done) {
+          endedBy = endedBy === 'upstream-finished' ? 'upstream-finished' : endedBy;
+          break;
+        }
+        if (controller.signal.aborted) {
+          break;
+        }
+        if (!value || value.length === 0) {
+          continue;
+        }
 
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
         let separatorIndex = buffer.indexOf('\n\n');
         while (separatorIndex !== -1) {
           const block = buffer.slice(0, separatorIndex);
@@ -6664,19 +7309,65 @@ async function main(options = {}) {
       if (buffer.trim().length > 0) {
         forwardBlock(buffer.trim());
       }
+
+      cleanup();
+      if (!res.writableEnded) {
+        res.end();
+      }
+      const durationMs = Date.now() - startedAt;
+      
+      // Emit stream lifecycle close event
+      try {
+        const lifecycleCloseEvent = {
+          type: 'openchamber:stream-lifecycle',
+          properties: {
+            action: 'close',
+            reason: endedBy,
+            scope: scope,
+            duration: durationMs,
+            bytesReceived: bytesReceived,
+            timestamp: Date.now(),
+          },
+        };
+        // Note: res may be ended, so we don't try to write this event
+      } catch {
+        // ignore
+      }
+      
+      console.log(`[sse] close scope=${scope} reason=${endedBy} durationMs=${durationMs} bytesReceived=${bytesReceived}`);
     } catch (error) {
-      if (!controller.signal.aborted) {
-        console.warn('SSE proxy stream error:', error);
+      const isAbort = error?.name === 'AbortError';
+      if (endedBy === 'upstream-finished' && !isAbort) {
+        endedBy = 'upstream-error';
+      }
+      cleanup();
+      if (!res.headersSent) {
+        res.status(502).json({ error: 'Failed to connect to OpenCode event stream' });
+      } else if (!res.writableEnded) {
+        try {
+          res.end();
+        } catch {
+          // ignore
+        }
+      }
+      const durationMs = Date.now() - startedAt;
+      if (!isAbort) {
+        console.warn(`[sse] error scope=${scope} reason=${endedBy} durationMs=${durationMs}:`, error);
+      } else {
+        console.log(`[sse] close scope=${scope} reason=${endedBy} durationMs=${durationMs}`);
       }
     } finally {
-      clearInterval(heartbeatInterval);
-      cleanup();
       try {
-        res.end();
+        upstreamReader?.releaseLock?.();
       } catch {
         // ignore
       }
     }
+  };
+
+  app.get(['/api/global/event', '/api/event'], async (req, res) => {
+    const scope = req.path === '/api/global/event' ? 'global' : 'session';
+    await proxyOpenCodeSse(req, res, { scope });
   });
 
   app.get('/api/config/settings', async (_req, res) => {
@@ -6693,6 +7384,8 @@ async function main(options = {}) {
     try {
       const settings = await readSettingsFromDiskMigrated();
       const configured = typeof settings?.opencodeBinary === 'string' ? settings.opencodeBinary : null;
+      const configuredAiBrowser =
+        typeof settings?.aiBrowserEnabled === 'boolean' ? settings.aiBrowserEnabled : null;
 
       const previousSource = resolvedOpencodeBinarySource;
       const detectedNow = resolveOpencodeCliPath();
@@ -6701,6 +7394,7 @@ async function main(options = {}) {
 
       // Best-effort: apply configured override (if any) and resolve.
       await applyOpencodeBinaryFromSettings();
+      await applyAiBrowserSettingFromSettings();
       ensureOpencodeCliEnv();
 
       const resolved = resolvedOpencodeBinary || null;
@@ -6718,6 +7412,8 @@ async function main(options = {}) {
 
       res.json({
         configured,
+        configuredAiBrowser,
+        aiBrowserEnabledEnv: process.env.OPENCODE_ENABLE_AI_BROWSER === 'true',
         resolved,
         resolvedDir: resolved ? path.dirname(resolved) : null,
         source,
@@ -6754,6 +7450,554 @@ async function main(options = {}) {
       console.error(`[API:PUT /api/config/settings] Failed to save settings:`, error);
       console.error(`[API:PUT /api/config/settings] Error stack:`, error.stack);
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to save settings' });
+    }
+  });
+
+  const summarizeProviderForAgentMode = (provider) => {
+    if (!provider || typeof provider !== 'object') {
+      return null;
+    }
+    const id = typeof provider.id === 'string' ? provider.id.trim() : '';
+    if (!id) {
+      return null;
+    }
+    const name = typeof provider.name === 'string' ? provider.name.trim() : '';
+    const type = typeof provider.type === 'string' ? provider.type.trim() : '';
+    return {
+      id,
+      name: name || id,
+      type: type || null,
+    };
+  };
+
+  const executeAgentModeTask = async (task) => {
+    if (task.mode === 'desktop-browser') {
+      throw new Error('desktop-browser mode does not use background task runners. Use /api/runtime/browser/action.');
+    }
+
+    const connector = resolveAgentModeConnectorConfig(task.mode);
+    const payload = buildAgentModeTaskPayload(task);
+
+    if (connector.apiUrl) {
+      const result = await runAgentModeApiTask(connector.apiUrl, payload);
+      return {
+        connector: {
+          mode: task.mode,
+          kind: 'api',
+          endpoint: connector.apiUrl,
+        },
+        result,
+      };
+    }
+
+    if (!connector.command || connector.command.trim().length === 0) {
+      throw new Error(`No ${task.mode} connector configured. Set API URL or runner command env var.`);
+    }
+
+    const result = await runAgentModeCommandTask(connector.command, payload);
+    return {
+      connector: {
+        mode: task.mode,
+        kind: 'command',
+        command: connector.command,
+      },
+      result,
+    };
+  };
+
+  const startAgentModeTask = async (task) => {
+    task.status = 'running';
+    task.startedAt = Date.now();
+    task.updatedAt = task.startedAt;
+    broadcastAgentModeTaskEvent(task, 'running');
+
+    try {
+      const execution = await executeAgentModeTask(task);
+      const metadata = collectAgentModeRuntimeMetadata(execution.result);
+      task.status = 'done';
+      task.success = true;
+      task.result = execution.result;
+      task.connector = execution.connector;
+      task.error = null;
+      task.runtimeSessionID = metadata.runtimeSessionID;
+      task.liveUrl = metadata.liveUrl;
+      task.artifacts = metadata.artifacts;
+      task.logs = metadata.logs;
+    } catch (error) {
+      task.status = 'done';
+      task.success = false;
+      task.error = error instanceof Error ? error.message : String(error || 'Task failed');
+      task.result = null;
+      task.liveUrl = null;
+      task.runtimeSessionID = null;
+      task.artifacts = [];
+      task.logs = [
+        ...(Array.isArray(task.logs) ? task.logs : []),
+        ...(error instanceof Error && error.message ? [error.message] : []),
+      ].slice(0, 120);
+    } finally {
+      task.finishedAt = Date.now();
+      task.updatedAt = task.finishedAt;
+      broadcastAgentModeTaskEvent(task, 'done');
+    }
+  };
+
+  app.get('/api/agent-mode/status', async (_req, res) => {
+    try {
+      pruneAgentModeTasks();
+      const settings = await readSettingsFromDiskMigrated();
+      const persistedMode = normalizeAgentModeSetting(settings?.agentMode);
+
+      let providers = [];
+      try {
+        const snapshot = await fetchProvidersSnapshot();
+        providers = snapshot.map(summarizeProviderForAgentMode).filter(Boolean);
+      } catch {
+        providers = [];
+      }
+
+      const tasks = Array.from(agentModeTasks.values());
+      const runningTasks = tasks.filter((entry) => entry?.status === 'running').length;
+
+      res.json({
+        mode: persistedMode,
+        availableModes: Array.from(AGENT_MODE_ALLOWED_VALUES),
+        openCodeRunning: Boolean(openCodePort && isOpenCodeReady && !isRestartingOpenCode),
+        openCodeSecureConnection: isOpenCodeConnectionSecure(),
+        connectors: {
+          e2b: buildAgentModeConnectorStatus('e2b'),
+          openbrowser: buildAgentModeConnectorStatus('openbrowser'),
+          'desktop-browser': buildAgentModeConnectorStatus('desktop-browser'),
+        },
+        providers,
+        tasks: {
+          total: tasks.length,
+          running: runningTasks,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to load agent mode status:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to load agent mode status' });
+    }
+  });
+
+  app.put('/api/agent-mode', async (req, res) => {
+    try {
+      const rawMode = typeof req.body?.mode === 'string' ? req.body.mode.trim().toLowerCase() : '';
+      if (!AGENT_MODE_ALLOWED_VALUES.has(rawMode)) {
+        return res.status(400).json({ error: 'Invalid mode. Use off, desktop-browser, e2b, or openbrowser.' });
+      }
+      const mode = normalizeAgentModeSetting(rawMode);
+
+      await persistSettings({ agentMode: mode });
+
+      res.json({
+        mode,
+        connectors: {
+          e2b: buildAgentModeConnectorStatus('e2b'),
+          openbrowser: buildAgentModeConnectorStatus('openbrowser'),
+          'desktop-browser': buildAgentModeConnectorStatus('desktop-browser'),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to update agent mode:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update agent mode' });
+    }
+  });
+
+  app.post('/api/agent-mode/task', async (req, res) => {
+    try {
+      pruneAgentModeTasks();
+
+      const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+      if (!prompt) {
+        return res.status(400).json({ error: 'Prompt is required' });
+      }
+
+      const settings = await readSettingsFromDiskMigrated();
+      const persistedMode = normalizeAgentModeSetting(settings?.agentMode);
+      const hasOverride = typeof req.body?.mode === 'string' && req.body.mode.trim().length > 0;
+      if (hasOverride) {
+        const rawOverride = req.body.mode.trim().toLowerCase();
+        if (!AGENT_MODE_ALLOWED_VALUES.has(rawOverride)) {
+          return res.status(400).json({
+            error: 'Invalid mode override. Use desktop-browser, e2b, or openbrowser.',
+          });
+        }
+      }
+      const requestedMode = hasOverride
+        ? normalizeAgentModeSetting(req.body.mode)
+        : persistedMode;
+
+      if (!isSupportedAgentMode(requestedMode) || requestedMode === 'off') {
+        return res.status(400).json({
+          error: 'Desktop agent mode is off. Set mode to desktop-browser, e2b, or openbrowser first.',
+          mode: persistedMode,
+        });
+      }
+      if (requestedMode === 'desktop-browser') {
+        return res.status(400).json({
+          error: 'desktop-browser mode does not support background tasks. Use /api/runtime/browser/action.',
+          mode: persistedMode,
+        });
+      }
+
+      const taskID = crypto.randomUUID();
+      const task = {
+        taskID,
+        mode: requestedMode,
+        prompt,
+        status: 'queued',
+        success: null,
+        error: null,
+        result: null,
+        connector: null,
+        runtimeSessionID: null,
+        liveUrl: null,
+        artifacts: [],
+        logs: [],
+        sessionID: normalizeOptionalString(req.body?.sessionID) || null,
+        providerID: normalizeOptionalString(req.body?.providerID) || null,
+        modelID: normalizeOptionalString(req.body?.modelID) || null,
+        agentName: normalizeOptionalString(req.body?.agentName) || null,
+        createdAt: Date.now(),
+        startedAt: null,
+        finishedAt: null,
+        updatedAt: Date.now(),
+      };
+
+      agentModeTasks.set(taskID, task);
+      broadcastAgentModeTaskEvent(task, 'queued');
+
+      const runInBackground = req.body?.background !== false;
+      if (runInBackground) {
+        void startAgentModeTask(task);
+        return res.status(202).json({
+          ...serializeAgentModeTask(task),
+          status: 'running',
+        });
+      }
+
+      await startAgentModeTask(task);
+      return res.json(serializeAgentModeTask(task));
+    } catch (error) {
+      console.error('Failed to run desktop agent task:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to run desktop agent task' });
+    }
+  });
+
+  const getAgentModeTasksList = (sessionID, modeFilter, limit = 40) => {
+    pruneAgentModeTasks();
+    return Array.from(agentModeTasks.values())
+      .filter((task) => {
+        if (!task || typeof task !== 'object') {
+          return false;
+        }
+        if (sessionID && task.sessionID !== sessionID) {
+          return false;
+        }
+        if (modeFilter && task.mode !== modeFilter) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const updatedA = typeof a.updatedAt === 'number' ? a.updatedAt : 0;
+        const updatedB = typeof b.updatedAt === 'number' ? b.updatedAt : 0;
+        return updatedB - updatedA;
+      })
+      .slice(0, limit);
+  };
+
+  app.get('/api/agent-mode/tasks', (req, res) => {
+    const sessionID = normalizeOptionalString(req.query?.sessionID);
+    const modeFilter = normalizeOptionalString(req.query?.mode);
+    const rawLimit = Number(req.query?.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(200, Math.max(1, Math.round(rawLimit))) : 40;
+
+    const tasks = getAgentModeTasksList(sessionID, modeFilter, limit);
+    res.json({ tasks: tasks.map(serializeAgentModeTask) });
+  });
+
+  app.get('/api/agent-mode/task/:taskID', (req, res) => {
+    pruneAgentModeTasks();
+    const taskID = typeof req.params?.taskID === 'string' ? req.params.taskID.trim() : '';
+    if (!taskID) {
+      return res.status(400).json({ error: 'Task id is required' });
+    }
+
+    const task = agentModeTasks.get(taskID);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    res.json(serializeAgentModeTask(task));
+  });
+
+  const normalizeRuntimeMode = (value) => {
+    if (value === 'desktop-browser') return 'desktop-browser';
+    if (value === 'e2b' || value === 'openbrowser' || value === 'off') return value;
+    return 'off';
+  };
+
+  const isRuntimeTaskMode = (value) => value === 'e2b' || value === 'openbrowser';
+
+  app.get('/api/runtime/status', async (_req, res) => {
+    try {
+      pruneAgentModeTasks();
+      const settings = await readSettingsFromDiskMigrated();
+      const persistedMode = normalizeAgentModeSetting(settings?.agentMode);
+
+      let providers = [];
+      try {
+        const snapshot = await fetchProvidersSnapshot();
+        providers = snapshot.map(summarizeProviderForAgentMode).filter(Boolean);
+      } catch {
+        providers = [];
+      }
+
+      const tasks = Array.from(agentModeTasks.values());
+      const runningTasks = tasks.filter((entry) => entry?.status === 'running').length;
+
+      res.json({
+        mode: persistedMode,
+        availableModes: Array.from(AGENT_MODE_ALLOWED_VALUES),
+        timestamp: Date.now(),
+        openCodeRunning: Boolean(openCodePort && isOpenCodeReady && !isRestartingOpenCode),
+        openCodeSecureConnection: isOpenCodeConnectionSecure(),
+        connectors: {
+          e2b: buildAgentModeConnectorStatus('e2b'),
+          openbrowser: buildAgentModeConnectorStatus('openbrowser'),
+          'desktop-browser': buildAgentModeConnectorStatus('desktop-browser'),
+        },
+        streamHealth: {
+          ready: isOpenCodeReady,
+          restarting: isRestartingOpenCode,
+          lastError: lastOpenCodeError,
+        },
+        providers,
+        tasks: {
+          total: tasks.length,
+          running: runningTasks,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to load runtime status:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to load runtime status' });
+    }
+  });
+
+  app.post('/api/runtime/task', async (req, res) => {
+    try {
+      pruneAgentModeTasks();
+
+      const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : '';
+      if (!prompt) {
+        return res.status(400).json({ error: 'Prompt is required' });
+      }
+
+      const settings = await readSettingsFromDiskMigrated();
+      const persistedMode = normalizeAgentModeSetting(settings?.agentMode);
+      const requestedMode = normalizeRuntimeMode(normalizeOptionalString(req.body?.mode) || persistedMode);
+
+      if (requestedMode === 'desktop-browser') {
+        return res.status(400).json({
+          error: 'desktop-browser runtime does not support background task execution. Use /api/runtime/browser/action.',
+        });
+      }
+
+      if (!isRuntimeTaskMode(requestedMode)) {
+        return res.status(400).json({
+          error: 'Runtime mode is off. Set mode to e2b or openbrowser first.',
+          mode: persistedMode,
+        });
+      }
+
+      const taskID = crypto.randomUUID();
+      const task = {
+        taskID,
+        mode: requestedMode,
+        prompt,
+        status: 'queued',
+        success: null,
+        error: null,
+        result: null,
+        connector: null,
+        runtimeSessionID: null,
+        liveUrl: null,
+        artifacts: [],
+        logs: [],
+        sessionID: normalizeOptionalString(req.body?.sessionID) || null,
+        providerID: normalizeOptionalString(req.body?.providerID) || null,
+        modelID: normalizeOptionalString(req.body?.modelID) || null,
+        agentName: normalizeOptionalString(req.body?.agentName) || null,
+        createdAt: Date.now(),
+        startedAt: null,
+        finishedAt: null,
+        updatedAt: Date.now(),
+      };
+
+      agentModeTasks.set(taskID, task);
+      broadcastAgentModeTaskEvent(task, 'queued');
+
+      const runInBackground = req.body?.background !== false;
+      if (runInBackground) {
+        void startAgentModeTask(task);
+        return res.status(202).json({
+          ...serializeAgentModeTask(task),
+          status: 'running',
+        });
+      }
+
+      await startAgentModeTask(task);
+      return res.json(serializeAgentModeTask(task));
+    } catch (error) {
+      console.error('Failed to run runtime task:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to run runtime task' });
+    }
+  });
+
+  app.get('/api/runtime/tasks', (req, res) => {
+    pruneAgentModeTasks();
+    const sessionID = normalizeOptionalString(req.query?.sessionID);
+    const modeFilter = normalizeRuntimeMode(normalizeOptionalString(req.query?.mode));
+    const rawLimit = Number(req.query?.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(200, Math.max(1, Math.round(rawLimit))) : 40;
+
+    const tasks = Array.from(agentModeTasks.values())
+      .filter((task) => {
+        if (!task || typeof task !== 'object') {
+          return false;
+        }
+        if (sessionID && task.sessionID !== sessionID) {
+          return false;
+        }
+        if (modeFilter !== 'off' && task.mode !== modeFilter) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const updatedA = typeof a.updatedAt === 'number' ? a.updatedAt : 0;
+        const updatedB = typeof b.updatedAt === 'number' ? b.updatedAt : 0;
+        return updatedB - updatedA;
+      })
+      .slice(0, limit)
+      .map((task) => serializeAgentModeTask(task));
+
+    res.json({ tasks });
+  });
+
+  app.get('/api/runtime/task/:taskID', (req, res) => {
+    pruneAgentModeTasks();
+    const taskID = typeof req.params?.taskID === 'string' ? req.params.taskID.trim() : '';
+    if (!taskID) {
+      return res.status(400).json({ error: 'Task id is required' });
+    }
+
+    const task = agentModeTasks.get(taskID);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    res.json(serializeAgentModeTask(task));
+  });
+
+  app.get('/api/runtime/browser/state', async (req, res) => {
+    const sessionID = normalizeOptionalString(req.query?.sessionID);
+    if (!sessionID) {
+      return res.status(400).json({ error: 'sessionID is required' });
+    }
+
+    try {
+      const url = new URL(buildOpenCodeUrl('/experimental/browser/state', ''));
+      url.searchParams.set('sessionID', sessionID);
+      const upstream = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          ...getOpenCodeAuthHeaders(),
+        },
+        signal: AbortSignal.timeout(LONG_REQUEST_TIMEOUT_MS),
+      });
+      const body = await upstream.text();
+      res.status(upstream.status);
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+      res.send(body);
+    } catch (error) {
+      res.status(503).json({
+        error: error instanceof Error ? error.message : 'Failed to proxy browser state',
+      });
+    }
+  });
+
+  app.post('/api/runtime/browser/action', async (req, res) => {
+    const sessionID = normalizeOptionalString(req.body?.sessionID) || normalizeOptionalString(req.query?.sessionID);
+    const action = normalizeOptionalString(req.body?.action);
+    const payload =
+      req.body?.payload && typeof req.body.payload === 'object' && !Array.isArray(req.body.payload)
+        ? req.body.payload
+        : {};
+
+    if (!sessionID || !action) {
+      return res.status(400).json({ error: 'sessionID and action are required' });
+    }
+
+    try {
+      const upstream = await fetch(buildOpenCodeUrl('/experimental/browser/action', ''), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...getOpenCodeAuthHeaders(),
+        },
+        body: JSON.stringify({
+          sessionID,
+          action,
+          payload,
+        }),
+        signal: AbortSignal.timeout(LONG_REQUEST_TIMEOUT_MS),
+      });
+      const body = await upstream.text();
+      res.status(upstream.status);
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+      res.send(body);
+    } catch (error) {
+      res.status(503).json({
+        error: error instanceof Error ? error.message : 'Failed to proxy browser action',
+      });
+    }
+  });
+
+  app.get('/api/runtime/browser/frame', async (req, res) => {
+    const sessionID = normalizeOptionalString(req.query?.sessionID);
+    if (!sessionID) {
+      return res.status(400).json({ error: 'sessionID is required' });
+    }
+
+    try {
+      const frameId = normalizeOptionalString(req.query?.frameId);
+      const url = new URL(buildOpenCodeUrl('/experimental/browser/frame', ''));
+      url.searchParams.set('sessionID', sessionID);
+      if (frameId) {
+        url.searchParams.set('frameId', frameId);
+      }
+      const upstream = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          ...getOpenCodeAuthHeaders(),
+        },
+        signal: AbortSignal.timeout(LONG_REQUEST_TIMEOUT_MS),
+      });
+      const body = await upstream.text();
+      res.status(upstream.status);
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+      res.send(body);
+    } catch (error) {
+      res.status(503).json({
+        error: error instanceof Error ? error.message : 'Failed to proxy browser frame',
+      });
     }
   });
 
@@ -11760,7 +13004,7 @@ Context:
         // ignore
       }
 
-      console.log(`OpenChamber server running on port ${activePort}`);
+      console.log(`KronosChamber server running on port ${activePort}`);
       console.log(`Health check: http://localhost:${activePort}/health`);
       console.log(`Web interface: http://localhost:${activePort}`);
 

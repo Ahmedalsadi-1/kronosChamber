@@ -23,11 +23,11 @@ import {
  * Ensure project-level agent directory exists
  */
 function ensureProjectAgentDir(workingDirectory) {
-  const projectAgentDir = path.join(workingDirectory, '.opencode', 'agents');
+  const projectAgentDir = path.join(workingDirectory, '.kronoscode', 'agents');
   if (!fs.existsSync(projectAgentDir)) {
     fs.mkdirSync(projectAgentDir, { recursive: true });
   }
-  const legacyProjectAgentDir = path.join(workingDirectory, '.opencode', 'agent');
+  const legacyProjectAgentDir = path.join(workingDirectory, '.kronoscode', 'agent');
   if (!fs.existsSync(legacyProjectAgentDir)) {
     fs.mkdirSync(legacyProjectAgentDir, { recursive: true });
   }
@@ -38,8 +38,8 @@ function ensureProjectAgentDir(workingDirectory) {
  * Get project-level agent path
  */
 function getProjectAgentPath(workingDirectory, agentName) {
-  const pluralPath = path.join(workingDirectory, '.opencode', 'agents', `${agentName}.md`);
-  const legacyPath = path.join(workingDirectory, '.opencode', 'agent', `${agentName}.md`);
+  const pluralPath = path.join(workingDirectory, '.kronoscode', 'agents', `${agentName}.md`);
+  const legacyPath = path.join(workingDirectory, '.kronoscode', 'agent', `${agentName}.md`);
   if (fs.existsSync(legacyPath) && !fs.existsSync(pluralPath)) return legacyPath;
   return pluralPath;
 }
@@ -103,7 +103,7 @@ function getIndexedUserAgentPath(agentName, cache) {
 
 /**
  * Get user-level agent path — walks subfolders to support grouped layouts.
- * e.g. ~/.config/opencode/agents/business/ceo-diginno.md
+ * e.g. ~/.config/kronoscode/agents/business/ceo-diginno.md
  */
 function getUserAgentPath(agentName, lookupCache = null) {
   // 1. Check flat path first (legacy / newly created agents)
@@ -196,13 +196,13 @@ function getAgentPermissionSource(agentName, workingDirectory, lookupCache = nul
   // Check JSON layers (project > user)
   const layers = readConfigLayers(workingDirectory);
 
-  // Project opencode.json
+  // Project kronoscode.json
   const projectJsonPermission = layers.projectConfig?.agent?.[agentName]?.permission;
   if (projectJsonPermission !== undefined && layers.paths.projectPath) {
     return { source: 'json', scope: AGENT_SCOPE.PROJECT, path: layers.paths.projectPath };
   }
 
-  // User opencode.json
+  // User kronoscode.json
   const userJsonPermission = layers.userConfig?.agent?.[agentName]?.permission;
   if (userJsonPermission !== undefined) {
     return { source: 'json', scope: AGENT_SCOPE.USER, path: layers.paths.userPath };
@@ -396,7 +396,7 @@ function createAgent(agentName, config, workingDirectory, scope) {
   const layers = readConfigLayers(workingDirectory);
   const jsonSource = getJsonEntrySource(layers, 'agent', agentName);
   if (jsonSource.exists) {
-    throw new Error(`Agent ${agentName} already exists in opencode.json`);
+    throw new Error(`Agent ${agentName} already exists in kronoscode.json`);
   }
 
   let targetPath;
@@ -605,7 +605,7 @@ function deleteAgent(agentName, workingDirectory) {
     if (!jsonSource.config.agent) jsonSource.config.agent = {};
     delete jsonSource.config.agent[agentName];
     writeConfig(jsonSource.config, jsonSource.path);
-    console.log(`Removed agent from opencode.json: ${agentName}`);
+    console.log(`Removed agent from kronoscode.json: ${agentName}`);
     deleted = true;
   }
 

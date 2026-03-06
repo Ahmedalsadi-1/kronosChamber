@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { StoreApi, UseBoundStore } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { Session, Message, Part } from "@opencode-ai/sdk/v2";
+import type { Session, Message, Part } from "@kronoscode-ai/sdk/v2";
 import type { PermissionRequest, PermissionResponse } from "@/types/permission";
 import type { QuestionRequest } from "@/types/question";
 import type { SessionStore, AttachedFile, EditPermissionMode, SyntheticContextPart } from "./types/sessionTypes";
@@ -13,13 +13,15 @@ import { useFileStore } from "./fileStore";
 import { useContextStore } from "./contextStore";
 import { usePermissionStore } from "./permissionStore";
 import { useQuestionStore } from "./questionStore";
-import { opencodeClient } from "@/lib/opencode/client";
+import { kronoscodeClient } from "@/lib/opencode/client";
 import { useDirectoryStore } from "./useDirectoryStore";
 import { useConfigStore } from "./useConfigStore";
 import { useProjectsStore } from "./useProjectsStore";
 import { useSessionFoldersStore } from "./useSessionFoldersStore";
 import { EXECUTION_FORK_META_TEXT } from "@/lib/messages/executionMeta";
 import { flattenAssistantTextParts } from "@/lib/messages/messageText";
+import { getIdentityHeaders } from "@/lib/clientIdentity";
+import { triggerSessionStatusPoll } from "@/hooks/useServerSessionStatus";
 
 export type { AttachedFile, EditPermissionMode };
 export { MEMORY_LIMITS, ACTIVE_SESSION_WINDOW } from "./types/sessionTypes";
@@ -256,7 +258,7 @@ export const useSessionStore = create<SessionStore>()(
                         return;
                     }
 
-                    await opencodeClient.sendMessage({
+                    await kronoscodeClient.sendMessage({
                         id: session.id,
                         providerID,
                         modelID,
@@ -276,19 +278,20 @@ export const useSessionStore = create<SessionStore>()(
                     }
 
                     const previousSessionId = useSessionManagementStore.getState().currentSessionId;
+                    const identityHeaders = getIdentityHeaders();
 
                     const sessionDirectory = resolveSessionDirectory(
                         useSessionManagementStore.getState().sessions,
                         id,
                         useSessionManagementStore.getState().getWorktreeMetadata
                     );
-                    const fallbackDirectory = opencodeClient.getDirectory() ?? useDirectoryStore.getState().currentDirectory ?? null;
+                    const fallbackDirectory = kronoscodeClient.getDirectory() ?? useDirectoryStore.getState().currentDirectory ?? null;
                     const resolvedDirectory = sessionDirectory ?? fallbackDirectory;
 
                     try {
-                        opencodeClient.setDirectory(resolvedDirectory ?? undefined);
+                        kronoscodeClient.setDirectory(resolvedDirectory ?? undefined);
                     } catch (error) {
-                        console.warn("Failed to set OpenCode directory for session switch:", error);
+                        console.warn("Failed to set KronosCode directory for session switch:", error);
                     }
 
                     if (previousSessionId && previousSessionId !== id) {
@@ -305,6 +308,23 @@ export const useSessionStore = create<SessionStore>()(
                     }
 
                     useSessionManagementStore.getState().setCurrentSession(id);
+                    if (previousSessionId && previousSessionId !== id) {
+                        fetch(`/api/sessions/${previousSessionId}/unview`, {
+                            method: "POST",
+                            headers: identityHeaders,
+                        }).catch(() => {
+                            // ignored
+                        });
+                    }
+                    if (id) {
+                        fetch(`/api/sessions/${id}/view`, {
+                            method: "POST",
+                            headers: identityHeaders,
+                        }).catch(() => {
+                            // ignored
+                        });
+                    }
+                    triggerSessionStatusPoll();
 
                     if (id) {
 
@@ -412,7 +432,7 @@ export const useSessionStore = create<SessionStore>()(
                         try {
                             useSessionManagementStore
                                 .getState()
-                                .initializeNewOpenChamberSession(created.id, configState.agents);
+                                .initializeNewKronosChamberSession(created.id, configState.agents);
                         } catch {
                             // ignored
                         }
@@ -492,7 +512,10 @@ export const useSessionStore = create<SessionStore>()(
 
                     // Notify server that user sent a message in this session
                     if (currentSessionId) {
-                        fetch(`/api/sessions/${currentSessionId}/message-sent`, { method: 'POST' })
+                        fetch(`/api/sessions/${currentSessionId}/message-sent`, {
+                            method: 'POST',
+                            headers: getIdentityHeaders(),
+                        })
                             .catch(() => { /* ignore */ });
                     }
 
@@ -594,9 +617,9 @@ export const useSessionStore = create<SessionStore>()(
                     const messages = useMessageStore.getState().messages;
                     return useContextStore.getState().analyzeAndSaveExternalSessionChoices(sessionId, agents, messages);
                 },
-                isOpenChamberCreatedSession: (sessionId: string) => useSessionManagementStore.getState().isOpenChamberCreatedSession(sessionId),
-                markSessionAsOpenChamberCreated: (sessionId: string) => useSessionManagementStore.getState().markSessionAsOpenChamberCreated(sessionId),
-                initializeNewOpenChamberSession: (sessionId: string, agents: Record<string, unknown>[]) => useSessionManagementStore.getState().initializeNewOpenChamberSession(sessionId, agents),
+                isKronosChamberCreatedSession: (sessionId: string) => useSessionManagementStore.getState().isKronosChamberCreatedSession(sessionId),
+                markSessionAsKronosChamberCreated: (sessionId: string) => useSessionManagementStore.getState().markSessionAsKronosChamberCreated(sessionId),
+                initializeNewKronosChamberSession: (sessionId: string, agents: Record<string, unknown>[]) => useSessionManagementStore.getState().initializeNewKronosChamberSession(sessionId, agents),
                 setWorktreeMetadata: (sessionId: string, metadata) => useSessionManagementStore.getState().setWorktreeMetadata(sessionId, metadata),
                 setSessionDirectory: (sessionId: string, directory: string | null) => useSessionManagementStore.getState().setSessionDirectory(sessionId, directory),
                 getWorktreeMetadata: (sessionId: string) => useSessionManagementStore.getState().getWorktreeMetadata(sessionId),
@@ -658,7 +681,7 @@ export const useSessionStore = create<SessionStore>()(
                     }
 
                     // Call revert API
-                    const updatedSession = await opencodeClient.revertSession(sessionId, messageId);
+                    const updatedSession = await kronoscodeClient.revertSession(sessionId, messageId);
 
                     // Update session in store (this stores the revert.messageID)
                     useSessionManagementStore.getState().updateSession(updatedSession);
@@ -754,7 +777,7 @@ export const useSessionStore = create<SessionStore>()(
                         toast.success(`Redid to: ${preview}`);
                     } else {
                         // Full unrevert: restore all
-                        const session = await opencodeClient.unrevertSession(sessionId);
+                        const session = await kronoscodeClient.unrevertSession(sessionId);
                         await useSessionManagementStore.getState().updateSession(session);
                         await get().loadMessages(sessionId);
 
@@ -770,7 +793,7 @@ export const useSessionStore = create<SessionStore>()(
 
                     try {
                         // 1. Call SDK fork - backend copies all messages up to messageId
-                        const result = await opencodeClient.forkSession(sessionId, messageId);
+                        const result = await kronoscodeClient.forkSession(sessionId, messageId);
 
                         if (!result || !result.id) {
                             const { toast } = await import('sonner');

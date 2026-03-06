@@ -51,7 +51,7 @@ export const ProvidersSidebar: React.FC<ProvidersSidebarProps> = ({ onItemSelect
           <div className="py-12 px-4 text-center text-muted-foreground">
             <RiStackLine className="mx-auto mb-3 h-10 w-10 opacity-50" />
             <p className="typography-ui-label font-medium">No providers found</p>
-            <p className="typography-meta mt-1 opacity-75">Check your OpenCode configuration</p>
+            <p className="typography-meta mt-1 opacity-75">Check your KronosCode configuration</p>
           </div>
         ) : (
           providers.map((provider) => {

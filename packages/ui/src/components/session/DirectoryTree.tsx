@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { RiAddLine, RiArrowDownSLine, RiArrowRightSLine, RiCheckLine, RiCloseLine, RiFolder6Line, RiPushpin2Line, RiPushpinLine } from '@remixicon/react';
 import { cn, formatPathForDisplay } from '@/lib/utils';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 import { useDeviceInfo } from '@/lib/device';
 import type { DesktopSettings } from '@/lib/desktop';
 import { updateDesktopSettings } from '@/lib/persistence';
@@ -183,7 +183,7 @@ export const DirectoryTree: React.FC<DirectoryTreeProps> = ({
 
     const resolveHomeDirectory = async () => {
       try {
-        const fsHome = await opencodeClient.getFilesystemHome();
+        const fsHome = await kronoscodeClient.getFilesystemHome();
         if (!cancelled && applyRootDirectory(fsHome)) {
           return;
         }
@@ -192,7 +192,7 @@ export const DirectoryTree: React.FC<DirectoryTreeProps> = ({
       }
 
       try {
-        const info = await opencodeClient.getSystemInfo();
+        const info = await kronoscodeClient.getSystemInfo();
         if (!cancelled && applyRootDirectory(info?.homeDirectory)) {
           return;
         }
@@ -372,7 +372,7 @@ export const DirectoryTree: React.FC<DirectoryTreeProps> = ({
     }
 
     try {
-      const filesystemEntries = await opencodeClient.listLocalDirectory(path);
+      const filesystemEntries = await kronoscodeClient.listLocalDirectory(path);
       return filesystemEntries
         .filter((entry) => {
           if (!entry.isDirectory) {
@@ -395,7 +395,7 @@ export const DirectoryTree: React.FC<DirectoryTreeProps> = ({
     } catch {
       try {
 
-        const tempClient = opencodeClient.getApiClient();
+        const tempClient = kronoscodeClient.getApiClient();
         const response = await tempClient.file.list({
           path: '.',
           directory: path
@@ -575,7 +575,7 @@ export const DirectoryTree: React.FC<DirectoryTreeProps> = ({
     const fullPath = `${creatingInPath}/${dirName}`;
 
     try {
-      await opencodeClient.createDirectory(fullPath, { allowOutsideWorkspace: true });
+      await kronoscodeClient.createDirectory(fullPath, { allowOutsideWorkspace: true });
 
       const children = await loadDirectory(creatingInPath);
       const updateItems = (items: DirectoryItem[]): DirectoryItem[] => {

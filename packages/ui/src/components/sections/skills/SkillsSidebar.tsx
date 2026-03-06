@@ -69,7 +69,7 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect }) =>
     }
 
     // Set draft and open the page for editing
-    setSkillDraft({ name: newName, scope: 'user', source: 'opencode', description: '' });
+    setSkillDraft({ name: newName, scope: 'user', source: 'kronoscode', description: '' });
     setSelectedSkill(newName);
     onItemSelect?.();
 
@@ -119,7 +119,7 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect }) =>
       setSkillDraft({
         name: newName,
         scope: skill.scope || 'user',
-        source: skill.source || 'opencode',
+        source: skill.source || 'kronoscode',
         description: detail.sources.md.fields.includes('description') ? '' : '', // Will be populated from page
         instructions: '',
       });

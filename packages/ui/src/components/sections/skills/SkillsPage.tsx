@@ -83,14 +83,14 @@ export const SkillsPage: React.FC = () => {
         { value: 'external', label: 'External' },
       ]}
       value={mode}
-      onValueChange={setMode}
+      onValueChange={(value: string) => setMode(value as SkillsMode)}
       animate={false}
     />
   ) : null;
 
   const [draftName, setDraftName] = React.useState('');
   const [draftScope, setDraftScope] = React.useState<SkillScope>('user');
-  const [draftSource, setDraftSource] = React.useState<'opencode' | 'agents'>('opencode');
+  const [draftSource, setDraftSource] = React.useState<'kronoscode' | 'agents'>('kronoscode');
   const [description, setDescription] = React.useState('');
   const [instructions, setInstructions] = React.useState('');
   const [supportingFiles, setSupportingFiles] = React.useState<SupportingFile[]>([]);
@@ -209,7 +209,7 @@ export const SkillsPage: React.FC = () => {
         // Prefill from draft (for new or duplicated skills)
         setDraftName(skillDraft.name || '');
         setDraftScope(skillDraft.scope || 'user');
-        setDraftSource(skillDraft.source === 'agents' ? 'agents' : 'opencode');
+        setDraftSource(skillDraft.source === 'agents' ? 'agents' : 'kronoscode');
         setDescription(skillDraft.description || '');
         setInstructions(skillDraft.instructions || '');
         setOriginalDescription('');
@@ -515,7 +515,7 @@ export const SkillsPage: React.FC = () => {
                 onValueChange={(v) => {
                   const next = locationPartsFrom(v as SkillLocationValue);
                   setDraftScope(next.scope);
-                  setDraftSource(next.source === 'agents' ? 'agents' : 'opencode');
+                  setDraftSource(next.source === 'agents' ? 'agents' : 'kronoscode');
                 }}
               >
                 <SelectTrigger className="!h-9 w-auto gap-1.5">

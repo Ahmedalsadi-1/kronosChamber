@@ -13,9 +13,12 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "paths": {
-      "@openchamber/ui/*": ["./packages/ui/src/*"],
-      "@openchamber/web/*": ["./packages/web/src/*"],
-      "@openchamber/desktop/*": ["./packages/desktop/src/*"]
+      "@opencode-ai/ui/*": ["./packages/ui/src/*"],
+      "@opencode-ai/web/*": ["./packages/web/src/*"],
+      "@opencode-ai/desktop/*": ["./packages/desktop/src/*"],
+      "@kronoscode-ai/ui/*": ["./packages/ui/src/*"],
+      "@kronoscode-ai/web/*": ["./packages/web/src/*"],
+      "@kronoscode-ai/desktop/*": ["./packages/desktop/src/*"]
     }
   }
 }

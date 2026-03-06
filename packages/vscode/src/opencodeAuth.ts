@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-const OPENCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'opencode');
-const AUTH_FILE = path.join(OPENCODE_DATA_DIR, 'auth.json');
+const KRONOSCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'kronoscode');
+const AUTH_FILE = path.join(KRONOSCODE_DATA_DIR, 'auth.json');
 
 type AuthEntry = Record<string, unknown>;
 type AuthFile = Record<string, AuthEntry>;
@@ -21,14 +21,14 @@ const readAuthFile = (): AuthFile => {
     return JSON.parse(trimmed) as AuthFile;
   } catch (error) {
     console.error('Failed to read auth file:', error);
-    throw new Error('Failed to read OpenCode auth configuration');
+    throw new Error('Failed to read KronosCode auth configuration');
   }
 };
 
 const writeAuthFile = (auth: AuthFile): void => {
   try {
-    if (!fs.existsSync(OPENCODE_DATA_DIR)) {
-      fs.mkdirSync(OPENCODE_DATA_DIR, { recursive: true });
+    if (!fs.existsSync(KRONOSCODE_DATA_DIR)) {
+      fs.mkdirSync(KRONOSCODE_DATA_DIR, { recursive: true });
     }
 
     if (fs.existsSync(AUTH_FILE)) {
@@ -39,7 +39,7 @@ const writeAuthFile = (auth: AuthFile): void => {
     fs.writeFileSync(AUTH_FILE, JSON.stringify(auth, null, 2), 'utf8');
   } catch (error) {
     console.error('Failed to write auth file:', error);
-    throw new Error('Failed to write OpenCode auth configuration');
+    throw new Error('Failed to write KronosCode auth configuration');
   }
 };
 
@@ -69,4 +69,4 @@ export const listProviderAuths = (): string[] => {
   return Object.keys(auth);
 };
 
-export { AUTH_FILE, OPENCODE_DATA_DIR };
+export { AUTH_FILE, KRONOSCODE_DATA_DIR };

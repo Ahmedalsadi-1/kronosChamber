@@ -25,7 +25,7 @@ function validateMcpName(name) {
 }
 
 /**
- * List all MCP server configs from user-level opencode.json
+ * List all MCP server configs from user-level kronoscode.json
  */
 function resolveMcpScopeFromPath(layers, sourcePath) {
   if (!sourcePath) return null;
@@ -33,11 +33,11 @@ function resolveMcpScopeFromPath(layers, sourcePath) {
 }
 
 function ensureProjectMcpConfigPath(workingDirectory) {
-  const configDir = path.join(workingDirectory, '.opencode');
+  const configDir = path.join(workingDirectory, '.kronoscode');
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
-  return path.join(configDir, 'opencode.json');
+  return path.join(configDir, 'kronoscode.json');
 }
 
 function listMcpConfigs(workingDirectory) {

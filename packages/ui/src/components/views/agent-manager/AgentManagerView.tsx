@@ -19,14 +19,14 @@ interface AgentManagerViewProps {
 export const AgentManagerView: React.FC<AgentManagerViewProps> = ({ className }) => {
   const isVSCodeRuntime = Boolean(
     (typeof window !== 'undefined'
-      ? (window as unknown as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } })
-          .__OPENCHAMBER_RUNTIME_APIS__?.runtime?.isVSCode
+      ? (window as unknown as { __KRONOSCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean } } })
+          .__KRONOSCHAMBER_RUNTIME_APIS__?.runtime?.isVSCode
       : false)
   );
   const [connectionStatus, setConnectionStatus] = React.useState<'connecting' | 'connected' | 'error' | 'disconnected'>(
     () =>
       (typeof window !== 'undefined'
-        ? (window as unknown as { __OPENCHAMBER_CONNECTION__?: { status?: string } }).__OPENCHAMBER_CONNECTION__?.status as
+        ? (window as unknown as { __KRONOSCHAMBER_CONNECTION__?: { status?: string } }).__KRONOSCHAMBER_CONNECTION__?.status as
             'connecting' | 'connected' | 'error' | 'disconnected' | undefined
         : 'connecting') || 'connecting'
   );
@@ -52,7 +52,7 @@ export const AgentManagerView: React.FC<AgentManagerViewProps> = ({ className })
 
     const current =
       (typeof window !== 'undefined'
-        ? (window as unknown as { __OPENCHAMBER_CONNECTION__?: { status?: string } }).__OPENCHAMBER_CONNECTION__?.status
+        ? (window as unknown as { __KRONOSCHAMBER_CONNECTION__?: { status?: string } }).__KRONOSCHAMBER_CONNECTION__?.status
         : undefined) as 'connecting' | 'connected' | 'error' | 'disconnected' | undefined;
     if (current === 'connected' || current === 'connecting' || current === 'error' || current === 'disconnected') {
       setConnectionStatus(current);
@@ -111,7 +111,7 @@ export const AgentManagerView: React.FC<AgentManagerViewProps> = ({ className })
         await loadSessions();
 
         if (streamDebugEnabled()) {
-          console.log('[OpenChamber][VSCode][agentManager] bootstrap complete', {
+          console.log('[KronosChamber][VSCode][agentManager] bootstrap complete', {
             providers: configState.providers.length,
             agents: configState.agents.length,
             sessions: useSessionStore.getState().sessions.length,
@@ -155,7 +155,7 @@ export const AgentManagerView: React.FC<AgentManagerViewProps> = ({ className })
         return false;
       };
 
-      // Refresh sessions + groups and wait briefly for OpenCode to surface the new worktree sessions.
+      // Refresh sessions + groups and wait briefly for KronosCode to surface the new worktree sessions.
       try {
         await useSessionStore.getState().loadSessions();
       } catch {

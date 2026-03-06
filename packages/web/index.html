@@ -25,9 +25,9 @@
     <script>
       const baseUrl = location.origin;
       const manifest = {
-        "name": "OpenChamber - AI Coding Assistant",
-        "short_name": "OpenChamber",
-        "description": "Web interface companion for OpenCode AI coding agent",
+        "name": "KronosChamber - AI Coding Assistant",
+        "short_name": "KronosChamber",
+        "description": "Desktop-first interface companion for the KronosCode AI coding agent",
         "start_url": baseUrl + "/",
         "display": "standalone",
         "background_color": "#151313",
@@ -109,12 +109,12 @@
     <!-- iOS Safari PWA styling -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="OpenChamber" />
+    <meta name="apple-mobile-web-app-title" content="KronosChamber" />
 
-    <title>OpenChamber - AI Coding Assistant</title>
-    <meta name="description" content="Web interface companion for OpenCode AI coding agent" />
-    <meta name="application-name" content="OpenChamber" />
-    <meta name="apple-mobile-web-app-title" content="OpenChamber" />
+    <title>KronosChamber - AI Coding Assistant</title>
+    <meta name="description" content="Desktop-first interface companion for the KronosCode AI coding agent" />
+    <meta name="application-name" content="KronosChamber" />
+    <meta name="apple-mobile-web-app-title" content="KronosChamber" />
 
     <!-- Inline CSS for loading screen and Nerd Fonts (before Tailwind loads) -->
     <style>
@@ -185,6 +185,16 @@
       .logo-pulse {
         animation: logo-pulse 3s ease-in-out infinite;
       }
+      .splash-logo {
+        width: 120px;
+        height: 120px;
+        border-radius: 24px;
+        background-repeat: no-repeat;
+        background-size: 300% 300%;
+        background-position: 0% 0%;
+        background-color: #000;
+        box-shadow: 0 16px 40px color-mix(in srgb, var(--splash-stroke) 20%, transparent);
+      }
       #initial-loading {
         background-color: var(--splash-background);
         color: var(--splash-foreground);
@@ -209,70 +219,67 @@
       <!-- Loading fallback while React initializes -->
       <div id="initial-loading">
         <div style="display: flex; align-items: center; justify-content: center;">
-          <svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OpenChamber loading icon">
-            <!-- Isometric cube: edge=48, centerY=50 -->
-            <!-- Points: top(50,2), left(8.432,26), right(91.568,26), center(50,50), bottomLeft(8.432,74), bottomRight(91.568,74), bottom(50,98) -->
-            
-            <!-- Left face - base fill with stroke -->
-            <path d="M50 50 L8.432 26 L8.432 74 L50 98 Z" fill="var(--splash-face-fill)" stroke="var(--splash-stroke)" stroke-width="2" stroke-linejoin="round"/>
-            
-            <!-- Left face grid cells (4x4) with varying opacity -->
-            <path d="M50 50 L39.608 44 L39.608 56 L50 62 Z" fill="var(--splash-cell-fill)" opacity="0.2"/>
-            <path d="M39.608 44 L29.216 38 L29.216 50 L39.608 56 Z" fill="var(--splash-cell-fill)" opacity="0.45"/>
-            <path d="M29.216 38 L18.824 32 L18.824 44 L29.216 50 Z" fill="var(--splash-cell-fill)" opacity="0.15"/>
-            <path d="M18.824 32 L8.432 26 L8.432 38 L18.824 44 Z" fill="var(--splash-cell-fill)" opacity="0.55"/>
-            <path d="M50 62 L39.608 56 L39.608 68 L50 74 Z" fill="var(--splash-cell-fill)" opacity="0.35"/>
-            <path d="M39.608 56 L29.216 50 L29.216 62 L39.608 68 Z" fill="var(--splash-cell-fill)" opacity="0.1"/>
-            <path d="M29.216 50 L18.824 44 L18.824 56 L29.216 62 Z" fill="var(--splash-cell-fill)" opacity="0.5"/>
-            <path d="M18.824 44 L8.432 38 L8.432 50 L18.824 56 Z" fill="var(--splash-cell-fill)" opacity="0.25"/>
-            <path d="M50 74 L39.608 68 L39.608 80 L50 86 Z" fill="var(--splash-cell-fill)" opacity="0.4"/>
-            <path d="M39.608 68 L29.216 62 L29.216 74 L39.608 80 Z" fill="var(--splash-cell-fill)" opacity="0.3"/>
-            <path d="M29.216 62 L18.824 56 L18.824 68 L29.216 74 Z" fill="var(--splash-cell-fill)" opacity="0.45"/>
-            <path d="M18.824 56 L8.432 50 L8.432 62 L18.824 68 Z" fill="var(--splash-cell-fill)" opacity="0.15"/>
-            <path d="M50 86 L39.608 80 L39.608 92 L50 98 Z" fill="var(--splash-cell-fill)" opacity="0.55"/>
-            <path d="M39.608 80 L29.216 74 L29.216 86 L39.608 92 Z" fill="var(--splash-cell-fill)" opacity="0.2"/>
-            <path d="M29.216 74 L18.824 68 L18.824 80 L29.216 86 Z" fill="var(--splash-cell-fill)" opacity="0.35"/>
-            <path d="M18.824 68 L8.432 62 L8.432 74 L18.824 80 Z" fill="var(--splash-cell-fill)" opacity="0.1"/>
-            
-            <!-- Right face - base fill with stroke -->
-            <path d="M50 50 L91.568 26 L91.568 74 L50 98 Z" fill="var(--splash-face-fill)" stroke="var(--splash-stroke)" stroke-width="2" stroke-linejoin="round"/>
-            
-            <!-- Right face grid cells (4x4) with varying opacity -->
-            <path d="M50 50 L60.392 44 L60.392 56 L50 62 Z" fill="var(--splash-cell-fill)" opacity="0.3"/>
-            <path d="M60.392 44 L70.784 38 L70.784 50 L60.392 56 Z" fill="var(--splash-cell-fill)" opacity="0.15"/>
-            <path d="M70.784 38 L81.176 32 L81.176 44 L70.784 50 Z" fill="var(--splash-cell-fill)" opacity="0.45"/>
-            <path d="M81.176 32 L91.568 26 L91.568 38 L81.176 44 Z" fill="var(--splash-cell-fill)" opacity="0.25"/>
-            <path d="M50 62 L60.392 56 L60.392 68 L50 74 Z" fill="var(--splash-cell-fill)" opacity="0.5"/>
-            <path d="M60.392 56 L70.784 50 L70.784 62 L60.392 68 Z" fill="var(--splash-cell-fill)" opacity="0.35"/>
-            <path d="M70.784 50 L81.176 44 L81.176 56 L70.784 62 Z" fill="var(--splash-cell-fill)" opacity="0.1"/>
-            <path d="M81.176 44 L91.568 38 L91.568 50 L81.176 56 Z" fill="var(--splash-cell-fill)" opacity="0.4"/>
-            <path d="M50 74 L60.392 68 L60.392 80 L50 86 Z" fill="var(--splash-cell-fill)" opacity="0.2"/>
-            <path d="M60.392 68 L70.784 62 L70.784 74 L60.392 80 Z" fill="var(--splash-cell-fill)" opacity="0.55"/>
-            <path d="M70.784 62 L81.176 56 L81.176 68 L70.784 74 Z" fill="var(--splash-cell-fill)" opacity="0.3"/>
-            <path d="M81.176 56 L91.568 50 L91.568 62 L81.176 68 Z" fill="var(--splash-cell-fill)" opacity="0.15"/>
-            <path d="M50 86 L60.392 80 L60.392 92 L50 98 Z" fill="var(--splash-cell-fill)" opacity="0.45"/>
-            <path d="M60.392 80 L70.784 74 L70.784 86 L60.392 92 Z" fill="var(--splash-cell-fill)" opacity="0.25"/>
-            <path d="M70.784 74 L81.176 68 L81.176 80 L70.784 86 Z" fill="var(--splash-cell-fill)" opacity="0.4"/>
-            <path d="M81.176 68 L91.568 62 L91.568 74 L81.176 80 Z" fill="var(--splash-cell-fill)" opacity="0.2"/>
-            
-            <!-- Top face - open (no fill), only stroke -->
-            <path d="M50 2 L8.432 26 L50 50 L91.568 26 Z" fill="none" stroke="var(--splash-stroke)" stroke-width="2" stroke-linejoin="round"/>
-            
-            <!-- OpenCode logo on top face -->
-            <g class="logo-pulse" transform="matrix(0.866, 0.5, -0.866, 0.5, 50, 26) scale(0.75)">
-              <path fill-rule="evenodd" clip-rule="evenodd" d="M-16 -20 L16 -20 L16 20 L-16 20 Z M-8 -12 L-8 12 L8 12 L8 -12 Z" fill="var(--splash-logo-fill)"/>
-              <path d="M-8 -4 L8 -4 L8 12 L-8 12 Z" fill="var(--splash-logo-fill)" fill-opacity="0.4"/>
-            </g>
-          </svg>
+          <div
+            id="splash-mascot"
+            class="splash-logo logo-pulse"
+            role="img"
+            aria-label="KronosChamber loading logo"
+            title="KronosChamber loading logo"
+          ></div>
         </div>
       </div>
     </div>
 
     <script>
+      (function() {
+        const splash = document.getElementById('splash-mascot');
+        if (!splash) return;
+
+        const getMascotFrameCoords = (index) => {
+            const col = index % 3;
+            const row = Math.floor(index / 3);
+            return {
+                x: col,
+                y: row,
+            };
+        };
+
+        const frames = [
+          { src: '/branding/source/gemini-default.png', isCollage: false },
+          { src: '/branding/source/gemini-pack-a.png', isCollage: true },
+          { src: '/branding/source/gemini-pack-b.png', isCollage: true },
+        ];
+
+        let frameIndex = 0;
+        const applyFrame = () => {
+          const frameData = frames[frameIndex % frames.length];
+          frameIndex += 1;
+
+          splash.style.backgroundImage = `url(${frameData.src})`;
+
+          if (frameData.isCollage) {
+            const currentCollageFrameIndex = Math.floor(Math.random() * 9); // Random frame from 0-8
+            const { x, y } = getMascotFrameCoords(currentCollageFrameIndex);
+            splash.style.backgroundSize = '300% 300%'; // Image is 3x larger than visible area
+            splash.style.backgroundPosition = `-${x * 100 / 3}% -${y * 100 / 3}%`; // Position to show correct frame
+          } else {
+            splash.style.backgroundSize = 'cover'; // Show entire image
+            splash.style.backgroundPosition = 'center'; // Center it
+          }
+        };
+
+        applyFrame();
+        window.__KRONOS_SPLASH_MASCOT_TIMER__ = window.setInterval(applyFrame, 1200);
+      })();
+
       // Fallback: hide loading screen after 10 seconds if React fails to load
       setTimeout(function() {
         const loading = document.getElementById('initial-loading');
         if (loading) {
+          if (window.__KRONOS_SPLASH_MASCOT_TIMER__) {
+            window.clearInterval(window.__KRONOS_SPLASH_MASCOT_TIMER__);
+            window.__KRONOS_SPLASH_MASCOT_TIMER__ = null;
+          }
           console.warn('Loading screen timeout - forcing hide after 10s');
           loading.classList.add('fade-out');
           setTimeout(function() {

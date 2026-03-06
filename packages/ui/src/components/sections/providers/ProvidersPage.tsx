@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/components/ui';
 import { RiStackLine, RiToolsLine, RiBrainAi3Line, RiFileImageLine, RiArrowDownSLine, RiCheckLine, RiSearchLine } from '@remixicon/react';
-import { reloadOpenCodeConfiguration } from '@/stores/useAgentsStore';
+import { reloadKronosCodeConfiguration } from '@/stores/useAgentsStore';
 import { cn } from '@/lib/utils';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import type { ModelMetadata } from '@/types';
@@ -339,7 +339,7 @@ export const ProvidersPage: React.FC = () => {
 
       toast.success('API key saved');
       setApiKeyInputs((prev) => ({ ...prev, [providerId]: '' }));
-      await reloadOpenCodeConfiguration({ scopes: ["providers"], mode: "active" });
+      await reloadKronosCodeConfiguration({ scopes: ["providers"], mode: "active" });
       setSelectedProvider(providerId);
     } catch (error) {
       console.error('Failed to save API key:', error);
@@ -438,7 +438,7 @@ export const ProvidersPage: React.FC = () => {
       toast.success('OAuth connection completed');
       setOauthCodes((prev) => ({ ...prev, [codeKey]: '' }));
       setPendingOAuth(null);
-      await reloadOpenCodeConfiguration({ scopes: ["providers"], mode: "active" });
+      await reloadKronosCodeConfiguration({ scopes: ["providers"], mode: "active" });
       setSelectedProvider(providerId);
     } catch (error) {
       console.error('Failed to complete OAuth flow:', error);
@@ -485,7 +485,7 @@ export const ProvidersPage: React.FC = () => {
       }
 
       toast.success('Provider disconnected');
-      await reloadOpenCodeConfiguration({ scopes: ["providers"], mode: "active" });
+      await reloadKronosCodeConfiguration({ scopes: ["providers"], mode: "active" });
     } catch (error) {
       console.error('Failed to disconnect provider:', error);
       toast.error('Failed to disconnect provider');
@@ -502,7 +502,7 @@ export const ProvidersPage: React.FC = () => {
         <div className="text-center text-muted-foreground">
           <RiStackLine className="mx-auto mb-3 h-12 w-12 opacity-50" />
           <p className="typography-body">No providers detected</p>
-          <p className="typography-meta mt-1 opacity-75">Check your OpenCode configuration</p>
+          <p className="typography-meta mt-1 opacity-75">Check your KronosCode configuration</p>
         </div>
       </div>
     );
@@ -638,7 +638,7 @@ export const ProvidersPage: React.FC = () => {
                     </Button>
                   </div>
                   <p className="typography-meta text-muted-foreground">
-                    Keys are sent directly to OpenCode and never stored by OpenChamber.
+                    Keys are sent directly to KronosCode and never stored by KronosChamber.
                   </p>
                 </div>
 
@@ -854,7 +854,7 @@ export const ProvidersPage: React.FC = () => {
                 </Button>
               </div>
               <p className="typography-meta text-muted-foreground">
-                Keys are sent directly to OpenCode and never stored by OpenChamber.
+                Keys are sent directly to KronosCode and never stored by KronosChamber.
               </p>
             </div>
 

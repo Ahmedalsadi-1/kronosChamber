@@ -15,6 +15,9 @@ const resourcesWebDistDir = path.join(resourcesDir, 'web-dist');
 const webDistDir = path.join(webDir, 'dist');
 
 const sidecarsDir = path.join(desktopTauriDir, 'sidecars');
+const skipResourceSync = process.env.OPENCHAMBER_DESKTOP_SKIP_RESOURCE_SYNC === '1';
+const skipSidecarBuild = process.env.OPENCHAMBER_DESKTOP_SKIP_SIDECAR_BUILD === '1';
+const skipWebBuild = process.env.OPENCHAMBER_DESKTOP_SKIP_WEB_BUILD === '1';
 
 const inferTargetTriple = () => {
   if (typeof process.env.TAURI_ENV_TARGET_TRIPLE === 'string' && process.env.TAURI_ENV_TARGET_TRIPLE.trim()) {
@@ -85,28 +88,58 @@ const copyDir = async (src, dst) => {
   }
 };
 
-console.log('[desktop] building web UI dist...');
-run(bunExe, ['run', 'build'], webDir);
+if (!skipWebBuild) {
+  console.log('[desktop] building web UI dist...');
+  run(bunExe, ['run', 'build'], webDir);
+} else {
+  console.log('[desktop] skipping web UI build (OPENCHAMBER_DESKTOP_SKIP_WEB_BUILD=1)');
+}
 
-console.log('[desktop] preparing tauri resources...');
-await fs.mkdir(resourcesDir, { recursive: true });
-await fs.rm(resourcesWebDistDir, { recursive: true, force: true });
-await copyDir(webDistDir, resourcesWebDistDir);
+if (!skipResourceSync) {
+  console.log('[desktop] preparing tauri resources...');
+  await fs.mkdir(resourcesDir, { recursive: true });
+  await fs.rm(resourcesWebDistDir, { recursive: true, force: true });
+  await copyDir(webDistDir, resourcesWebDistDir);
+} else {
+  console.log('[desktop] skipping tauri resources sync (OPENCHAMBER_DESKTOP_SKIP_RESOURCE_SYNC=1)');
+}
 
-console.log('[desktop] building openchamber-server sidecar...');
 await fs.mkdir(sidecarsDir, { recursive: true });
+if (skipSidecarBuild) {
+  let hasExistingSidecar = false;
+  try {
+    await fs.access(sidecarOutPath);
+    hasExistingSidecar = true;
+  } catch {
+    hasExistingSidecar = false;
+  }
 
-run(bunExe, [
-  'build',
-  '--compile',
-  path.join(webDir, 'server', 'index.js'),
-  '--outfile',
-  sidecarOutPath,
-], repoRoot);
+  if (hasExistingSidecar) {
+    console.log('[desktop] skipping sidecar rebuild (OPENCHAMBER_DESKTOP_SKIP_SIDECAR_BUILD=1)');
+  } else {
+    console.log('[desktop] sidecar missing, building once...');
+    run(bunExe, [
+      'build',
+      '--compile',
+      path.join(webDir, 'server', 'index.js'),
+      '--outfile',
+      sidecarOutPath,
+    ], repoRoot);
+  }
+} else {
+  console.log('[desktop] building openchamber-server sidecar...');
+  run(bunExe, [
+    'build',
+    '--compile',
+    path.join(webDir, 'server', 'index.js'),
+    '--outfile',
+    sidecarOutPath,
+  ], repoRoot);
+}
 
 if (process.platform !== 'win32') {
   await fs.chmod(sidecarOutPath, 0o755);
 }
 
 console.log(`[desktop] sidecar ready: ${sidecarOutPath}`);
-console.log(`[desktop] web assets ready: ${resourcesWebDistDir}`);
+console.log(`[desktop] web assets ready: ${skipResourceSync ? webDistDir : resourcesWebDistDir}`);

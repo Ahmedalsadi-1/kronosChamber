@@ -81,14 +81,14 @@ export type ProviderResult = {
   error?: string;
 };
 
-const OPENCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'opencode');
-const OPENCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'opencode');
-const AUTH_FILE = path.join(OPENCODE_DATA_DIR, 'auth.json');
+const KRONOSCODE_CONFIG_DIR = path.join(os.homedir(), '.config', 'kronoscode');
+const KRONOSCODE_DATA_DIR = path.join(os.homedir(), '.local', 'share', 'kronoscode');
+const AUTH_FILE = path.join(KRONOSCODE_DATA_DIR, 'auth.json');
 
 
 const ANTIGRAVITY_ACCOUNTS_PATHS = [
-  path.join(OPENCODE_CONFIG_DIR, 'antigravity-accounts.json'),
-  path.join(OPENCODE_DATA_DIR, 'antigravity-accounts.json'),
+  path.join(KRONOSCODE_CONFIG_DIR, 'antigravity-accounts.json'),
+  path.join(KRONOSCODE_DATA_DIR, 'antigravity-accounts.json'),
 ];
 
 // OAuth Secret value used to init client
@@ -97,7 +97,7 @@ const ANTIGRAVITY_ACCOUNTS_PATHS = [
 // "The process results in a client ID and, in some cases, a client secret,
 // which you embed in the source code of your application. (In this context,
 // the client secret is obviously not treated as a secret.)"
-// ref: https://github.com/opgginc/opencode-bar
+// ref: https://github.com/opgginc/kronoscode-bar
 
 const ANTIGRAVITY_GOOGLE_CLIENT_ID =
   '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
@@ -158,7 +158,7 @@ const readAuthFile = (): AuthFile => {
     return JSON.parse(trimmed) as AuthFile;
   } catch (error) {
     console.error('Failed to read auth file:', error);
-    throw new Error('Failed to read OpenCode auth configuration');
+    throw new Error('Failed to read KronosCode auth configuration');
   }
 };
 

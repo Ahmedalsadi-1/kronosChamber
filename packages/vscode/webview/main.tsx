@@ -1,21 +1,21 @@
 import { createVSCodeAPIs } from './api';
 import { onCommand, onThemeChange, proxyApiRequest, proxySessionMessageRequest, sendBridgeMessage, startSseProxy, stopSseProxy } from './api/bridge';
-import type { RuntimeAPIs } from '@openchamber/ui/lib/api/types';
+import type { RuntimeAPIs } from '@kronoscode-ai/ui/lib/api/types';
 import {
   buildVSCodeThemeFromPalette,
   readVSCodeThemePalette,
   type VSCodeThemeKind,
   type VSCodeThemePayload,
-} from '@openchamber/ui/lib/theme/vscode/adapter';
+} from '@kronoscode-ai/ui/lib/theme/vscode/adapter';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'error' | 'disconnected';
 type PanelType = 'chat' | 'agentManager';
 
-declare const __OPENCHAMBER_WEBVIEW_BUILD_TIME__: string;
+declare const __KRONOSCHAMBER_WEBVIEW_BUILD_TIME__: string;
 
 declare global {
   interface Window {
-    __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
+    __KRONOSCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
     __VSCODE_CONFIG__?: {
       apiUrl?: string;
       workspaceFolder: string;
@@ -26,45 +26,45 @@ declare global {
       viewMode?: 'sidebar' | 'editor';
       initialSessionId?: string | null;
     };
-    __OPENCHAMBER_VSCODE_THEME__?: VSCodeThemePayload['theme'];
-    __OPENCHAMBER_VSCODE_SHIKI_THEMES__?: { light?: Record<string, unknown>; dark?: Record<string, unknown> } | null;
-    __OPENCHAMBER_CONNECTION__?: { status: ConnectionStatus; error?: string; cliAvailable?: boolean };
-    __OPENCHAMBER_HOME__?: string;
-    __OPENCHAMBER_PANEL_TYPE__?: PanelType;
+    __KRONOSCHAMBER_VSCODE_THEME__?: VSCodeThemePayload['theme'];
+    __KRONOSCHAMBER_VSCODE_SHIKI_THEMES__?: { light?: Record<string, unknown>; dark?: Record<string, unknown> } | null;
+    __KRONOSCHAMBER_CONNECTION__?: { status: ConnectionStatus; error?: string; cliAvailable?: boolean };
+    __KRONOSCHAMBER_HOME__?: string;
+    __KRONOSCHAMBER_PANEL_TYPE__?: PanelType;
   }
 }
 
-console.log('[OpenChamber] VS Code webview starting...');
-console.log('[OpenChamber] VS Code webview build:', __OPENCHAMBER_WEBVIEW_BUILD_TIME__);
-console.log('[OpenChamber] Config:', window.__VSCODE_CONFIG__);
+console.log('[KronosChamber] VS Code webview starting...');
+console.log('[KronosChamber] VS Code webview build:', __KRONOSCHAMBER_WEBVIEW_BUILD_TIME__);
+console.log('[KronosChamber] Config:', window.__VSCODE_CONFIG__);
 try {
   if (window.localStorage.getItem('openchamber_stream_debug') === '1') {
-    console.log('[OpenChamber] Debug: openchamber_stream_debug=1');
+    console.log('[KronosChamber] Debug: openchamber_stream_debug=1');
   }
 } catch {
   // ignore
 }
 
-window.__OPENCHAMBER_RUNTIME_APIS__ = createVSCodeAPIs();
+window.__KRONOSCHAMBER_RUNTIME_APIS__ = createVSCodeAPIs();
 
 const bootstrapConnectionStatus = () => {
   const initialStatus = (window.__VSCODE_CONFIG__?.connectionStatus as ConnectionStatus | undefined) || 'connecting';
   const cliAvailable = window.__VSCODE_CONFIG__?.cliAvailable ?? true;
-  window.__OPENCHAMBER_CONNECTION__ = { status: initialStatus, cliAvailable };
+  window.__KRONOSCHAMBER_CONNECTION__ = { status: initialStatus, cliAvailable };
 };
 
 bootstrapConnectionStatus();
 
 // Expose panel type globally for App.tsx to conditionally render
-window.__OPENCHAMBER_PANEL_TYPE__ = (window.__VSCODE_CONFIG__?.panelType as PanelType) || 'chat';
+window.__KRONOSCHAMBER_PANEL_TYPE__ = (window.__VSCODE_CONFIG__?.panelType as PanelType) || 'chat';
 
 const handleConnectionMessage = (event: MessageEvent) => {
   const msg = event.data;
   if (msg?.type === 'connectionStatus') {
     const payload: ConnectionStatus = msg.status;
     const error: string | undefined = msg.error;
-    const prevCliAvailable = window.__OPENCHAMBER_CONNECTION__?.cliAvailable ?? true;
-    window.__OPENCHAMBER_CONNECTION__ = { status: payload, error, cliAvailable: prevCliAvailable };
+    const prevCliAvailable = window.__KRONOSCHAMBER_CONNECTION__?.cliAvailable ?? true;
+    window.__KRONOSCHAMBER_CONNECTION__ = { status: payload, error, cliAvailable: prevCliAvailable };
     window.dispatchEvent(new CustomEvent('openchamber:connection-status', { detail: { status: payload, error } }));
   }
 };
@@ -145,7 +145,7 @@ const recordBootstrapFetch = (pathname: string, ok: boolean) => {
 };
 
 const maybeHideLoadingOverlay = () => {
-  const connectionStatus = window.__OPENCHAMBER_CONNECTION__?.status ?? 'connecting';
+  const connectionStatus = window.__KRONOSCHAMBER_CONNECTION__?.status ?? 'connecting';
 
   if (!uiMounted) {
     return;
@@ -153,7 +153,7 @@ const maybeHideLoadingOverlay = () => {
 
   if (connectionStatus === 'connected') {
     if (bootstrapFailed) {
-      setLoadingStatusText('OpenCode connected, but initial data load failed.', 'error');
+      setLoadingStatusText('KronosCode connected, but initial data load failed.', 'error');
       fadeOutLoadingScreen();
       return;
     }
@@ -170,7 +170,7 @@ const maybeHideLoadingOverlay = () => {
   }
 
   if (connectionStatus === 'error') {
-    const error = window.__OPENCHAMBER_CONNECTION__?.error;
+    const error = window.__KRONOSCHAMBER_CONNECTION__?.error;
     setLoadingStatusText(error || 'Connection error', 'error');
     fadeOutLoadingScreen();
     return;
@@ -182,7 +182,7 @@ const maybeHideLoadingOverlay = () => {
     return;
   }
 
-  setLoadingStatusText('Starting OpenCode API…');
+  setLoadingStatusText('Starting KronosCode API…');
 };
 
 const applyInitialTheme = (theme: { metadata?: { variant?: string }; colors?: { surface?: { background?: string; foreground?: string } } }) => {
@@ -211,7 +211,7 @@ const emitVSCodeTheme = (preferredKind?: VSCodeThemeKind) => {
     return;
   }
   const theme = buildVSCodeThemeFromPalette(palette);
-  window.__OPENCHAMBER_VSCODE_THEME__ = theme;
+  window.__KRONOSCHAMBER_VSCODE_THEME__ = theme;
    applyInitialTheme(theme);
   window.dispatchEvent(new CustomEvent<VSCodeThemePayload>('openchamber:vscode-theme', {
     detail: { theme, palette },
@@ -237,7 +237,7 @@ onThemeChange((payload) => {
       : undefined) as VSCodeThemeKind | undefined;
 
   if (typeof payload === 'object' && payload?.shikiThemes !== undefined) {
-    window.__OPENCHAMBER_VSCODE_SHIKI_THEMES__ = payload.shikiThemes;
+    window.__KRONOSCHAMBER_VSCODE_SHIKI_THEMES__ = payload.shikiThemes;
     window.dispatchEvent(
       new CustomEvent('openchamber:vscode-shiki-themes', {
         detail: { shikiThemes: payload.shikiThemes },
@@ -259,7 +259,7 @@ if (workspaceFolder) {
   };
 
   const normalizedWorkspaceFolder = normalizeWorkspacePath(workspaceFolder);
-  window.__OPENCHAMBER_HOME__ = normalizedWorkspaceFolder;
+  window.__KRONOSCHAMBER_HOME__ = normalizedWorkspaceFolder;
   try {
     window.localStorage.setItem('lastDirectory', normalizedWorkspaceFolder);
     window.localStorage.setItem('homeDirectory', normalizedWorkspaceFolder);
@@ -352,7 +352,7 @@ const extractBodyBase64 = async (input: RequestInfo | URL, init: RequestInit | u
     return bytes.length > 0 ? encodeBase64(bytes) : undefined;
   }
 
-  console.warn('[OpenChamber] Unsupported request body type for proxy request:', body);
+  console.warn('[KronosChamber] Unsupported request body type for proxy request:', body);
   return undefined;
 };
 
@@ -379,7 +379,7 @@ const extractBodyText = async (input: RequestInfo | URL, init: RequestInit | und
     return await body.text();
   }
 
-  console.warn('[OpenChamber] Unsupported request body type for direct session proxy:', body);
+  console.warn('[KronosChamber] Unsupported request body type for direct session proxy:', body);
   return '';
 };
 
@@ -432,12 +432,12 @@ const handleLocalApiRequest = async (url: URL, init?: RequestInit) => {
 
   // Health endpoints: reflect actual connection status
   if (pathname === '/health' || pathname === '/api/health') {
-    const connectionStatus = window.__OPENCHAMBER_CONNECTION__?.status;
+    const connectionStatus = window.__KRONOSCHAMBER_CONNECTION__?.status;
     const isReady = connectionStatus === 'connected';
-    const cliAvailable = window.__OPENCHAMBER_CONNECTION__?.cliAvailable ?? true;
+    const cliAvailable = window.__KRONOSCHAMBER_CONNECTION__?.cliAvailable ?? true;
     return new Response(JSON.stringify({ 
       status: isReady ? 'ok' : 'connecting', 
-      isOpenCodeReady: isReady,
+      isKronosCodeReady: isReady,
       cliAvailable,
     }), {
       status: 200,
@@ -496,15 +496,15 @@ const handleLocalApiRequest = async (url: URL, init?: RequestInit) => {
       const headers = init?.headers;
       if (!headers) return undefined;
       if (headers instanceof Headers) {
-        return headers.get('x-opencode-directory') || undefined;
+        return headers.get('x-kronoscode-directory') || undefined;
       }
       if (Array.isArray(headers)) {
-        const found = headers.find(([key]) => key.toLowerCase() === 'x-opencode-directory');
+        const found = headers.find(([key]) => key.toLowerCase() === 'x-kronoscode-directory');
         return found?.[1] || undefined;
       }
       if (typeof headers === 'object') {
         for (const [key, value] of Object.entries(headers)) {
-          if (key.toLowerCase() === 'x-opencode-directory' && typeof value === 'string') {
+          if (key.toLowerCase() === 'x-kronoscode-directory' && typeof value === 'string') {
             return value;
           }
         }
@@ -531,15 +531,15 @@ const handleLocalApiRequest = async (url: URL, init?: RequestInit) => {
       const headers = init?.headers;
       if (!headers) return undefined;
       if (headers instanceof Headers) {
-        return headers.get('x-opencode-directory') || undefined;
+        return headers.get('x-kronoscode-directory') || undefined;
       }
       if (Array.isArray(headers)) {
-        const found = headers.find(([key]) => key.toLowerCase() === 'x-opencode-directory');
+        const found = headers.find(([key]) => key.toLowerCase() === 'x-kronoscode-directory');
         return found?.[1] || undefined;
       }
       if (typeof headers === 'object') {
         for (const [key, value] of Object.entries(headers)) {
-          if (key.toLowerCase() === 'x-opencode-directory' && typeof value === 'string') {
+          if (key.toLowerCase() === 'x-kronoscode-directory' && typeof value === 'string') {
             return value;
           }
         }
@@ -564,15 +564,15 @@ const handleLocalApiRequest = async (url: URL, init?: RequestInit) => {
       const headers = init?.headers;
       if (!headers) return undefined;
       if (headers instanceof Headers) {
-        return headers.get('x-opencode-directory') || undefined;
+        return headers.get('x-kronoscode-directory') || undefined;
       }
       if (Array.isArray(headers)) {
-        const found = headers.find(([key]) => key.toLowerCase() === 'x-opencode-directory');
+        const found = headers.find(([key]) => key.toLowerCase() === 'x-kronoscode-directory');
         return found?.[1] || undefined;
       }
       if (typeof headers === 'object') {
         for (const [key, value] of Object.entries(headers)) {
-          if (key.toLowerCase() === 'x-opencode-directory' && typeof value === 'string') {
+          if (key.toLowerCase() === 'x-kronoscode-directory' && typeof value === 'string') {
             return value;
           }
         }
@@ -599,15 +599,15 @@ const handleLocalApiRequest = async (url: URL, init?: RequestInit) => {
       const headers = init?.headers;
       if (!headers) return undefined;
       if (headers instanceof Headers) {
-        return headers.get('x-opencode-directory') || undefined;
+        return headers.get('x-kronoscode-directory') || undefined;
       }
       if (Array.isArray(headers)) {
-        const found = headers.find(([key]) => key.toLowerCase() === 'x-opencode-directory');
+        const found = headers.find(([key]) => key.toLowerCase() === 'x-kronoscode-directory');
         return found?.[1] || undefined;
       }
       if (typeof headers === 'object') {
         for (const [key, value] of Object.entries(headers)) {
-          if (key.toLowerCase() === 'x-opencode-directory' && typeof value === 'string') {
+          if (key.toLowerCase() === 'x-kronoscode-directory' && typeof value === 'string') {
             return value;
           }
         }
@@ -738,7 +738,7 @@ const handleLocalApiRequest = async (url: URL, init?: RequestInit) => {
       const data = await sendBridgeMessage('api:models/metadata');
       return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (error) {
-      console.warn('[OpenChamber] Failed to fetch models metadata via bridge, returning empty set:', error);
+      console.warn('[KronosChamber] Failed to fetch models metadata via bridge, returning empty set:', error);
       return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
   }
@@ -753,9 +753,9 @@ const handleLocalApiRequest = async (url: URL, init?: RequestInit) => {
     return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
-  if (pathname.startsWith('/api/opencode/directory')) {
+  if (pathname.startsWith('/api/kronoscode/directory')) {
     const body = init?.body ? JSON.parse(init.body as string) : {};
-    const result = await sendBridgeMessage('api:opencode/directory', { path: body.path });
+    const result = await sendBridgeMessage('api:kronoscode/directory', { path: body.path });
     return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
@@ -819,12 +819,12 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const pathname = targetUrl?.pathname || '';
   const normalizedPathname = pathname.replace(/\/+/, '/');
   if (targetUrl && normalizedPathname === '/health') {
-    const connectionStatus = window.__OPENCHAMBER_CONNECTION__?.status;
+    const connectionStatus = window.__KRONOSCHAMBER_CONNECTION__?.status;
     const isReady = connectionStatus === 'connected';
-    const cliAvailable = window.__OPENCHAMBER_CONNECTION__?.cliAvailable ?? true;
+    const cliAvailable = window.__KRONOSCHAMBER_CONNECTION__?.cliAvailable ?? true;
     return new Response(JSON.stringify({ 
       status: isReady ? 'ok' : 'connecting', 
-      isOpenCodeReady: isReady,
+      isKronosCodeReady: isReady,
       cliAvailable,
     }), {
       status: 200,
@@ -933,7 +933,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const data = await sendBridgeMessage('api:models/metadata');
       return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (error) {
-      console.warn('[OpenChamber] models.dev request failed via bridge, returning empty metadata:', error);
+      console.warn('[KronosChamber] models.dev request failed via bridge, returning empty metadata:', error);
       return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
   }
@@ -983,7 +983,7 @@ onCommand('createSessionWithPrompt', (payload) => {
         undefined, // agentMentionName
         undefined  // additionalParts
       ).catch((error: unknown) => {
-        console.error('[OpenChamber] Failed to send prompt:', error);
+        console.error('[KronosChamber] Failed to send prompt:', error);
       });
     } else {
       // If no provider/model configured, just set the text and let user send manually
@@ -1016,7 +1016,7 @@ import('@/main')
     maybeHideLoadingOverlay();
   })
   .catch((error) => {
-    console.error('[OpenChamber] Failed to bootstrap UI:', error);
+    console.error('[KronosChamber] Failed to bootstrap UI:', error);
     // If the UI bundle fails to load, remove the overlay so the user at least sees errors in the root.
     uiMounted = true;
     fadeOutLoadingScreen();

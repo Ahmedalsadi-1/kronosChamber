@@ -5,9 +5,9 @@ import {
   startConfigUpdate,
   finishConfigUpdate,
 } from '@/lib/configUpdate';
-import { refreshAfterOpenCodeRestart } from '@/stores/useAgentsStore';
+import { refreshAfterKronosCodeRestart } from '@/stores/useAgentsStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 
 export type McpScope = 'user' | 'project';
 
@@ -19,7 +19,7 @@ const getConfigDirectory = (): string | null => {
       return activeProject.path.trim();
     }
 
-    const clientDir = opencodeClient.getDirectory();
+    const clientDir = kronoscodeClient.getDirectory();
     if (clientDir?.trim()) {
       return clientDir.trim();
     }
@@ -109,7 +109,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             const configDirectory = getConfigDirectory();
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
             const response = await fetch(`/api/config/mcp${queryParams}`, {
-              headers: configDirectory ? { 'x-opencode-directory': configDirectory } : undefined,
+              headers: configDirectory ? { 'x-kronoscode-directory': configDirectory } : undefined,
             });
             if (!response.ok) {
               throw new Error('Failed to load MCP configs');
@@ -135,7 +135,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                ...(configDirectory ? { 'x-opencode-directory': configDirectory } : {}),
+                ...(configDirectory ? { 'x-kronoscode-directory': configDirectory } : {}),
               },
               body: JSON.stringify(body),
             });
@@ -147,7 +147,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
 
             if (payload?.requiresReload) {
               requiresReload = true;
-              await refreshAfterOpenCodeRestart({
+              await refreshAfterKronosCodeRestart({
                 message: payload.message,
                 delayMs: payload.reloadDelayMs ?? CLIENT_RELOAD_DELAY_MS,
                 scopes: ['all'],
@@ -176,7 +176,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
-                ...(configDirectory ? { 'x-opencode-directory': configDirectory } : {}),
+                ...(configDirectory ? { 'x-kronoscode-directory': configDirectory } : {}),
               },
               body: JSON.stringify(body),
             });
@@ -188,7 +188,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
 
             if (payload?.requiresReload) {
               requiresReload = true;
-              await refreshAfterOpenCodeRestart({
+              await refreshAfterKronosCodeRestart({
                 message: payload.message,
                 delayMs: payload.reloadDelayMs ?? CLIENT_RELOAD_DELAY_MS,
                 scopes: ['all'],
@@ -214,7 +214,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : '';
             const response = await fetch(`/api/config/mcp/${encodeURIComponent(name)}${queryParams}`, {
               method: 'DELETE',
-              headers: configDirectory ? { 'x-opencode-directory': configDirectory } : undefined,
+              headers: configDirectory ? { 'x-kronoscode-directory': configDirectory } : undefined,
             });
 
             const payload = await response.json().catch(() => null);
@@ -224,7 +224,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
 
             if (payload?.requiresReload) {
               requiresReload = true;
-              await refreshAfterOpenCodeRestart({
+              await refreshAfterKronosCodeRestart({
                 message: payload.message,
                 delayMs: payload.reloadDelayMs ?? CLIENT_RELOAD_DELAY_MS,
                 scopes: ['all'],

@@ -73,7 +73,7 @@ function buildTunnelUrl(baseUrl, password, includePassword) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const envPassword = process.env.OPENCHAMBER_UI_PASSWORD || undefined;
+  const envPassword = process.env.KRONOSCHAMBER_UI_PASSWORD || undefined;
   const options = { port: DEFAULT_PORT, daemon: false, uiPassword: envPassword, tryCfTunnel: false, tunnelQr: false, tunnelPasswordUrl: false };
   let command = 'serve';
 
@@ -153,7 +153,7 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
- OpenChamber - Web interface for the OpenCode AI coding agent
+ KronosChamber - Web interface for the KronosCode AI coding agent
 
 USAGE:
   openchamber [COMMAND] [OPTIONS]
@@ -176,9 +176,9 @@ OPTIONS:
   -v, --version           Show version
 
 ENVIRONMENT:
-  OPENCHAMBER_UI_PASSWORD      Alternative to --ui-password flag
-  OPENCODE_PORT               Port of external OpenCode server to connect to
-  OPENCODE_SKIP_START          Skip starting OpenCode, use external server
+  KRONOSCHAMBER_UI_PASSWORD      Alternative to --ui-password flag
+  KRONOSCODE_PORT               Port of external KronosCode server to connect to
+  KRONOSCODE_SKIP_START          Skip starting KronosCode, use external server
 
 EXAMPLES:
   openchamber                    # Start on default port 3000 (or a free port)
@@ -242,19 +242,19 @@ function searchPathFor(command) {
   return null;
 }
 
-async function checkOpenCodeCLI() {
-  if (process.env.OPENCODE_BINARY) {
-    const override = resolveExplicitBinary(process.env.OPENCODE_BINARY);
+async function checkKronosCodeCLI() {
+  if (process.env.KRONOSCODE_BINARY) {
+    const override = resolveExplicitBinary(process.env.KRONOSCODE_BINARY);
     if (override) {
-      process.env.OPENCODE_BINARY = override;
+      process.env.KRONOSCODE_BINARY = override;
       return override;
     }
-    console.warn(`Warning: OPENCODE_BINARY="${process.env.OPENCODE_BINARY}" is not an executable file. Falling back to PATH lookup.`);
+    console.warn(`Warning: KRONOSCODE_BINARY="${process.env.KRONOSCODE_BINARY}" is not an executable file. Falling back to PATH lookup.`);
   }
 
-  const resolvedFromPath = searchPathFor('opencode');
+  const resolvedFromPath = searchPathFor('kronoscode');
   if (resolvedFromPath) {
-    process.env.OPENCODE_BINARY = resolvedFromPath;
+    process.env.KRONOSCODE_BINARY = resolvedFromPath;
     return resolvedFromPath;
   }
 
@@ -270,7 +270,7 @@ async function checkOpenCodeCLI() {
         continue;
       }
       try {
-        const result = spawnSync(shellPath, ['-lic', 'command -v opencode'], {
+        const result = spawnSync(shellPath, ['-lic', 'command -v kronoscode'], {
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'pipe'],
         });
@@ -284,7 +284,7 @@ async function checkOpenCodeCLI() {
               segments.unshift(dir);
               process.env.PATH = segments.join(path.delimiter);
             }
-            process.env.OPENCODE_BINARY = candidate;
+            process.env.KRONOSCODE_BINARY = candidate;
             return candidate;
           }
         }
@@ -294,14 +294,14 @@ async function checkOpenCodeCLI() {
     }
   } else {
     try {
-      const result = spawnSync('where', ['opencode'], {
+      const result = spawnSync('where', ['kronoscode'], {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       if (result.status === 0) {
         const candidate = result.stdout.split(/\r?\n/).map((line) => line.trim()).find((line) => line.length > 0);
         if (candidate && isExecutable(candidate)) {
-          process.env.OPENCODE_BINARY = candidate;
+          process.env.KRONOSCODE_BINARY = candidate;
           return candidate;
         }
       }
@@ -310,9 +310,9 @@ async function checkOpenCodeCLI() {
     }
   }
 
-  console.error('Error: Unable to locate the opencode CLI on PATH.');
+  console.error('Error: Unable to locate the kronoscode CLI on PATH.');
   console.error(`Current PATH: ${process.env.PATH || '<empty>'}`);
-  console.error('Ensure the CLI is installed and reachable, or set OPENCODE_BINARY to its full path.');
+  console.error('Ensure the CLI is installed and reachable, or set KRONOSCODE_BINARY to its full path.');
   process.exit(1);
 }
 
@@ -481,7 +481,7 @@ const commands = {
 
       const existingPid = readPidFile(pidFilePath);
       if (existingPid && isProcessRunning(existingPid)) {
-        console.error(`Error: OpenChamber is already running on port ${options.port} (PID: ${existingPid})`);
+        console.error(`Error: KronosChamber is already running on port ${options.port} (PID: ${existingPid})`);
         console.error('Use "openchamber stop" to stop the existing instance');
         process.exit(1);
       }
@@ -492,7 +492,7 @@ const commands = {
       // Explicitly requested port=0; nothing to persist.
     }
 
-    const opencodeBinary = await checkOpenCodeCLI();
+    const kronoscodeBinary = await checkKronosCodeCLI();
 
     const serverPath = path.join(__dirname, '..', 'server', 'index.js');
 
@@ -521,11 +521,11 @@ const commands = {
         stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
         env: {
           ...process.env,
-          OPENCHAMBER_PORT: options.port.toString(),
-          OPENCODE_BINARY: opencodeBinary,
-          ...(typeof effectiveUiPassword === 'string' ? { OPENCHAMBER_UI_PASSWORD: effectiveUiPassword } : {}),
-          OPENCHAMBER_TRY_CF_TUNNEL: options.tryCfTunnel ? 'true' : 'false',
-          ...(process.env.OPENCODE_SKIP_START ? { OPENCHAMBER_SKIP_OPENCODE_START: process.env.OPENCODE_SKIP_START } : {}),
+          KRONOSCHAMBER_PORT: options.port.toString(),
+          KRONOSCODE_BINARY: kronoscodeBinary,
+          ...(typeof effectiveUiPassword === 'string' ? { KRONOSCHAMBER_UI_PASSWORD: effectiveUiPassword } : {}),
+          KRONOSCHAMBER_TRY_CF_TUNNEL: options.tryCfTunnel ? 'true' : 'false',
+          ...(process.env.KRONOSCODE_SKIP_START ? { KRONOSCHAMBER_SKIP_KRONOSCODE_START: process.env.KRONOSCODE_SKIP_START } : {}),
         }
       });
 
@@ -575,7 +575,7 @@ const commands = {
         writePidFile(pidFilePathResolved, child.pid);
         writeInstanceOptions(instanceFilePathResolved, { ...options, port: resolvedPort, uiPassword: effectiveUiPassword });
 
-        console.log(`OpenChamber started in daemon mode on port ${resolvedPort}`);
+        console.log(`KronosChamber started in daemon mode on port ${resolvedPort}`);
         console.log(`PID: ${child.pid}`);
         console.log(`Visit: http://localhost:${resolvedPort}`);
         if (showAutoGeneratedPassword) {
@@ -590,12 +590,12 @@ const commands = {
       return;
     }
 
-    process.env.OPENCODE_BINARY = opencodeBinary;
+    process.env.KRONOSCODE_BINARY = kronoscodeBinary;
     if (typeof effectiveUiPassword === 'string') {
-      process.env.OPENCHAMBER_UI_PASSWORD = effectiveUiPassword;
+      process.env.KRONOSCHAMBER_UI_PASSWORD = effectiveUiPassword;
     }
-    if (process.env.OPENCODE_SKIP_START) {
-      process.env.OPENCHAMBER_SKIP_OPENCODE_START = process.env.OPENCODE_SKIP_START;
+    if (process.env.KRONOSCODE_SKIP_START) {
+      process.env.KRONOSCHAMBER_SKIP_KRONOSCODE_START = process.env.KRONOSCODE_SKIP_START;
     }
     if (showAutoGeneratedPassword) {
       console.log(`\n🔐 Auto-generated password: \x1b[92m${effectiveUiPassword}\x1b[0m`);
@@ -609,11 +609,11 @@ const commands = {
         stdio: 'inherit',
         env: {
           ...process.env,
-          OPENCHAMBER_PORT: options.port.toString(),
-          OPENCODE_BINARY: opencodeBinary,
-          ...(typeof effectiveUiPassword === 'string' ? { OPENCHAMBER_UI_PASSWORD: effectiveUiPassword } : {}),
-          OPENCHAMBER_TRY_CF_TUNNEL: options.tryCfTunnel ? 'true' : 'false',
-          ...(process.env.OPENCODE_SKIP_START ? { OPENCHAMBER_SKIP_OPENCODE_START: process.env.OPENCODE_SKIP_START } : {}),
+          KRONOSCHAMBER_PORT: options.port.toString(),
+          KRONOSCODE_BINARY: kronoscodeBinary,
+          ...(typeof effectiveUiPassword === 'string' ? { KRONOSCHAMBER_UI_PASSWORD: effectiveUiPassword } : {}),
+          KRONOSCHAMBER_TRY_CF_TUNNEL: options.tryCfTunnel ? 'true' : 'false',
+          ...(process.env.KRONOSCODE_SKIP_START ? { KRONOSCHAMBER_SKIP_KRONOSCODE_START: process.env.KRONOSCODE_SKIP_START } : {}),
         },
       });
 
@@ -675,7 +675,7 @@ const commands = {
     }
 
     if (runningInstances.length === 0) {
-      console.log('No running OpenChamber instances found');
+      console.log('No running KronosChamber instances found');
       return;
     }
 
@@ -685,11 +685,11 @@ const commands = {
       const targetInstance = runningInstances.find(inst => inst.port === options.port);
 
       if (!targetInstance) {
-        console.log(`No OpenChamber instance found running on port ${options.port}`);
+        console.log(`No KronosChamber instance found running on port ${options.port}`);
         return;
       }
 
-      console.log(`Stopping OpenChamber (PID: ${targetInstance.pid}, Port: ${targetInstance.port})...`);
+      console.log(`Stopping KronosChamber (PID: ${targetInstance.pid}, Port: ${targetInstance.port})...`);
 
       try {
         await requestServerShutdown(targetInstance.port);
@@ -704,14 +704,14 @@ const commands = {
             clearInterval(checkShutdown);
             removePidFile(targetInstance.pidFilePath);
             removeInstanceFile(targetInstance.instanceFilePath);
-            console.log('OpenChamber stopped successfully');
+            console.log('KronosChamber stopped successfully');
           } else if (attempts >= maxAttempts) {
             clearInterval(checkShutdown);
             console.log('Force killing process...');
             process.kill(targetInstance.pid, 'SIGKILL');
             removePidFile(targetInstance.pidFilePath);
             removeInstanceFile(targetInstance.instanceFilePath);
-            console.log('OpenChamber force stopped');
+            console.log('KronosChamber force stopped');
           }
         }, 500);
 
@@ -721,7 +721,7 @@ const commands = {
       }
     } else {
 
-      console.log(`Stopping all OpenChamber instances (${runningInstances.length} found)...`);
+      console.log(`Stopping all KronosChamber instances (${runningInstances.length} found)...`);
 
       for (const instance of runningInstances) {
         console.log(`  Stopping instance on port ${instance.port} (PID: ${instance.pid})...`);
@@ -763,7 +763,7 @@ const commands = {
         }
       }
 
-      console.log('\nAll OpenChamber instances stopped');
+      console.log('\nAll KronosChamber instances stopped');
     }
   },
 
@@ -804,7 +804,7 @@ const commands = {
     const portWasSpecified = process.argv.includes('--port') || process.argv.includes('-p');
 
     if (instancesToRestart.length === 0) {
-      console.log('No running OpenChamber instances to restart');
+      console.log('No running KronosChamber instances to restart');
       console.log('Use "openchamber serve" to start a new instance');
       return;
     }
@@ -813,14 +813,14 @@ const commands = {
       // Restart specific instance
       const target = instancesToRestart.find(inst => inst.port === options.port);
       if (!target) {
-        console.log(`No OpenChamber instance found running on port ${options.port}`);
+        console.log(`No KronosChamber instance found running on port ${options.port}`);
         return;
       }
       instancesToRestart = [target];
     }
 
     for (const instance of instancesToRestart) {
-      console.log(`Restarting OpenChamber on port ${instance.port}...`);
+      console.log(`Restarting KronosChamber on port ${instance.port}...`);
 
       // Merge stored options with any explicitly provided options
       const restartOptions = {
@@ -888,7 +888,7 @@ const commands = {
     }
 
     if (runningInstances.length === 0) {
-      console.log('OpenChamber Status:');
+      console.log('KronosChamber Status:');
       console.log('  Status: Stopped');
       if (stoppedInstances.length > 0) {
         console.log(`  Previously used ports: ${stoppedInstances.map(s => s.port).join(', ')}`);
@@ -896,7 +896,7 @@ const commands = {
       return;
     }
 
-    console.log('OpenChamber Status:');
+    console.log('KronosChamber Status:');
     for (const [index, instance] of runningInstances.entries()) {
       if (runningInstances.length > 1) {
         console.log(`\nInstance ${index + 1}:`);

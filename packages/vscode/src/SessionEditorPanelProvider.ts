@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { handleBridgeMessage, type BridgeRequest, type BridgeResponse } from './bridge';
 import { getThemeKindName } from './theme';
-import type { OpenCodeManager, ConnectionStatus } from './opencode';
+import type { KronosCodeManager, ConnectionStatus } from './kronoscode';
 import { getWebviewShikiThemes } from './shikiThemes';
 import { getWebviewHtml } from './webviewHtml';
 
@@ -22,7 +22,7 @@ export class SessionEditorPanelProvider {
   constructor(
     private readonly _context: vscode.ExtensionContext,
     private readonly _extensionUri: vscode.Uri,
-    private readonly _openCodeManager?: OpenCodeManager
+    private readonly _openCodeManager?: KronosCodeManager
   ) {}
 
   public createOrShowNewSession(): void {
@@ -201,7 +201,7 @@ export class SessionEditorPanelProvider {
 
     const requestHeaders = this._buildSseHeaders({
       ...(headers || {}),
-      ...(this._openCodeManager?.getOpenCodeAuthHeaders() || {}),
+      ...(this._openCodeManager?.getKronosCodeAuthHeaders() || {}),
     });
 
     try {
@@ -211,7 +211,7 @@ export class SessionEditorPanelProvider {
         signal: controller.signal,
       });
 
-      // Fallback: OpenCode versions without /global/event.
+      // Fallback: KronosCode versions without /global/event.
       // VS Code is single-workspace, so we can wrap /event into { directory, payload }.
       if ((!response.ok || !response.body) && normalizedPath === '/global/event') {
         const fallbackUrl = new URL('event', base).toString();

@@ -115,6 +115,8 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
                 { name: 'undo', description: 'Undo the last message', isBuiltIn: true },
                 { name: 'redo', description: 'Redo previously undone messages', isBuiltIn: true },
                 { name: 'timeline', description: 'Jump to a specific message', isBuiltIn: true },
+                { name: 'agentmode', description: 'Set desktop sandbox mode: off, desktop-browser, e2b, or openbrowser', isBuiltIn: true },
+                { name: 'desktoptask', description: 'Run a background desktop/browser task in e2b or openbrowser (desktop-browser uses live panel)', isBuiltIn: true },
               ]
             : []
           ),
@@ -159,6 +161,8 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
                 { name: 'undo', description: 'Undo the last message', isBuiltIn: true },
                 { name: 'redo', description: 'Redo previously undone messages', isBuiltIn: true },
                 { name: 'timeline', description: 'Jump to a specific message', isBuiltIn: true },
+                { name: 'agentmode', description: 'Set desktop sandbox mode: off, desktop-browser, e2b, or openbrowser', isBuiltIn: true },
+                { name: 'desktoptask', description: 'Run a background desktop/browser task in e2b or openbrowser (desktop-browser uses live panel)', isBuiltIn: true },
               ]
             : []
           ),

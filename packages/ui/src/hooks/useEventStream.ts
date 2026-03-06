@@ -1,5 +1,5 @@
 import React from 'react';
-import { opencodeClient, type RoutedOpencodeEvent } from '@/lib/opencode/client';
+import { kronoscodeClient, type RoutedOpencodeEvent } from '@/lib/opencode/client';
 import { saveSessionCursor } from '@/lib/messageCursorPersistence';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useMessageStore } from '@/stores/messageStore';
@@ -15,6 +15,7 @@ import { streamDebugEnabled } from '@/stores/utils/streamDebug';
 import { handleTodoUpdatedEvent } from '@/stores/useTodoStore';
 import { useMcpStore } from '@/stores/useMcpStore';
 import { useContextStore } from '@/stores/contextStore';
+import { useAgentRuntimeStore } from '@/stores/useAgentRuntimeStore';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { isDesktopLocalOriginActive } from '@/lib/desktop';
 import { triggerSessionStatusPoll } from '@/hooks/useServerSessionStatus';
@@ -174,7 +175,7 @@ export const useEventStream = () => {
       const sessionDirs = currentSessions.map((session) => (session as { directory?: string | null }).directory);
 
       const directories = [effectiveDirectory, ...projectDirs, ...sessionDirs];
-      const pending = await opencodeClient.listPendingQuestions({ directories });
+      const pending = await kronoscodeClient.listPendingQuestions({ directories });
       if (pending.length === 0) {
         return;
       }
@@ -202,7 +203,7 @@ export const useEventStream = () => {
 
     const bootstrapPendingPermissions = async () => {
       try {
-        const pending = await opencodeClient.listPendingPermissions();
+        const pending = await kronoscodeClient.listPendingPermissions();
         if (cancelled || pending.length === 0) {
           return;
         }
@@ -402,6 +403,9 @@ export const useEventStream = () => {
     (sessionId: string, reason: string, limit?: number) => Promise<void>
   >(() => Promise.resolve());
   const scheduleReconnectRef = React.useRef<(hint?: string) => void>(() => {});
+  const isInterconnectRelayModeRef = React.useRef(false);
+  const processedEventIdsRef = React.useRef<Set<string>>(new Set());
+  const directSseFallbackSubscriberRef = React.useRef<(() => void) | null>(null);
 
   const maybeBootstrapIfStale = React.useCallback(
     (reason: string) => {
@@ -462,8 +466,8 @@ export const useEventStream = () => {
         try {
           const directory = resolveDirectoryForSession(sessionId);
           const session = directory
-            ? await opencodeClient.withDirectory(directory, () => opencodeClient.getSession(sessionId))
-            : await opencodeClient.getSession(sessionId);
+            ? await kronoscodeClient.withDirectory(directory, () => kronoscodeClient.getSession(sessionId))
+            : await kronoscodeClient.getSession(sessionId);
 
           if (session) {
             const patch: Partial<Session> = {};
@@ -606,6 +610,25 @@ export const useEventStream = () => {
 
   const handleEvent = React.useCallback((event: EventData) => {
     lastEventTimestampRef.current = Date.now();
+
+    // De-duplicate events by event id + type + session keys
+    const eventId = (event.properties?.eventId ?? event.properties?.id) as string | undefined;
+    const sessionId = (event.properties?.sessionId ?? event.properties?.sessionID) as string | undefined;
+    if (eventId) {
+      const dedupKey = `${event.type}:${eventId}${sessionId ? `:${sessionId}` : ''}`;
+      if (processedEventIdsRef.current.has(dedupKey)) {
+        return;
+      }
+      processedEventIdsRef.current.add(dedupKey);
+      if (processedEventIdsRef.current.size > 500) {
+        // Evict oldest entries
+        const iterator = processedEventIdsRef.current.values();
+        for (let i = 0; i < 100; i++) {
+          const val = iterator.next().value;
+          if (val) processedEventIdsRef.current.delete(val);
+        }
+      }
+    }
 
     if (streamDebugEnabled()) {
       console.debug('[useEventStream] Received event:', event.type, event.properties);
@@ -759,6 +782,30 @@ export const useEventStream = () => {
             });
 
             useSessionStore.setState({ sessionAttentionStates: newAttentionStates });
+          }
+        }
+        break;
+
+      case 'openchamber:agent-mode-task':
+        {
+          const taskPayload =
+            typeof props.task === 'object' && props.task !== null
+              ? props.task
+              : props;
+          useAgentRuntimeStore.getState().ingestTaskEvent(taskPayload);
+          const mode = readStringProp(taskPayload, ['mode']);
+          const status = readStringProp(taskPayload, ['status']);
+          if (
+            mode === 'desktop-browser'
+            && (status === 'queued' || status === 'running')
+          ) {
+            const directory = useDirectoryStore.getState().currentDirectory ?? null;
+            const uiState = useUIStore.getState();
+            uiState.setActiveMainTab('browser');
+            uiState.setBrowserChatLayoutMode('split', {
+              directory,
+              makeDefault: !directory,
+            });
           }
         }
         break;
@@ -1201,7 +1248,7 @@ export const useEventStream = () => {
             const hydrateKey = `${sessionId}:${messageId}`;
             if (!missingMessageHydrationRef.current.has(hydrateKey)) {
               missingMessageHydrationRef.current.add(hydrateKey);
-              void opencodeClient
+              void kronoscodeClient
                 .getSessionMessages(sessionId, 50)
                 .then((messages) => {
                   useSessionStore.getState().syncMessages(sessionId, messages);
@@ -1765,6 +1812,7 @@ export const useEventStream = () => {
       publishStatus('connected', null);
       checkConnection();
       triggerSessionStatusPoll();
+      void useAgentRuntimeStore.getState().hydrate(currentSessionIdRef.current ?? null);
 
       // Always refresh session status on connect to detect any
       // already-running sessions (e.g., started via CLI before UI opened)
@@ -1801,7 +1849,133 @@ export const useEventStream = () => {
     }
 
     try {
-      const sdkUnsub = opencodeClient.subscribeToGlobalEvents(
+      const runtimeAPIs = getRegisteredRuntimeAPIs();
+      const interconnect = isDesktopLocalOriginActive() ? runtimeAPIs?.interconnect : null;
+      if (interconnect) {
+        isInterconnectRelayModeRef.current = true;
+
+        let relayConnected = false;
+        let relayState: string | null = null;
+        const toStreamStatus = (state: string): EventStreamStatus => {
+          if (state === 'healthy') return 'connected';
+          if (state === 'reconnecting') return 'reconnecting';
+          if (state === 'offline') return 'offline';
+          if (state === 'degraded' || state === 'fallback-local') return 'connecting';
+          if (state === 'auth-required') return 'error';
+          return 'connecting';
+        };
+
+        const handleRelayStatus = (status: {
+          state: string;
+          reason?: string | null;
+          lastEventAt?: number | null;
+        }) => {
+          const previousRelayState = relayState;
+          relayState = status.state;
+
+          if (typeof status.lastEventAt === 'number' && status.lastEventAt > 0) {
+            lastEventTimestampRef.current = status.lastEventAt;
+          } else {
+            lastEventTimestampRef.current = Date.now();
+          }
+
+          publishStatus(toStreamStatus(status.state), status.reason ?? null);
+          if (
+            previousRelayState !== status.state &&
+            (status.state === 'reconnecting' || status.state === 'fallback-local')
+          ) {
+            triggerSessionStatusPoll();
+          }
+
+          if (status.state === 'healthy') {
+            if (directSseFallbackSubscriberRef.current) {
+              console.info('[useEventStream] Relay healthy, closing direct SSE fallback');
+              directSseFallbackSubscriberRef.current();
+              directSseFallbackSubscriberRef.current = null;
+            }
+            if (!relayConnected) {
+              relayConnected = true;
+              onOpen();
+            }
+            return;
+          }
+
+          // Relay is unhealthy/stale - check if we should add direct SSE fallback
+          const isStale = Date.now() - lastEventTimestampRef.current > 30000;
+          if ((status.state === 'reconnecting' || status.state === 'degraded' || isStale) && !directSseFallbackSubscriberRef.current) {
+            console.info('[useEventStream] Relay unhealthy/stale, opening direct SSE fallback');
+            directSseFallbackSubscriberRef.current = kronoscodeClient.subscribeToGlobalEvents(
+              (event: RoutedOpencodeEvent) => {
+                const payload = event.payload as unknown as EventData;
+                const payloadRecord = event.payload as unknown as Record<string, unknown>;
+                const baseProperties =
+                  typeof payloadRecord.properties === 'object' && payloadRecord.properties !== null
+                    ? (payloadRecord.properties as Record<string, unknown>)
+                    : {};
+
+                const properties =
+                  event.directory && event.directory !== 'global'
+                    ? { ...baseProperties, directory: event.directory }
+                    : baseProperties;
+
+                stableHandleEvent({
+                  type: typeof (payload as { type?: unknown }).type === 'string' ? (payload as { type: string }).type : '',
+                  properties,
+                });
+              },
+              (err) => console.warn('[useEventStream] Direct SSE fallback error:', err),
+              () => console.info('[useEventStream] Direct SSE fallback connected')
+            );
+          }
+
+          relayConnected = false;
+          pendingResumeRef.current = true;
+        };
+
+        const unsubs = [
+          interconnect.subscribeEvents((event) => {
+            stableHandleEvent({
+              type: event.type,
+              properties: event.properties,
+            });
+          }),
+          interconnect.subscribeStatus((status) => {
+            handleRelayStatus(status);
+          }),
+        ];
+
+        void interconnect.getState().then((snapshot) => {
+          if (!snapshot?.status) return;
+          handleRelayStatus(snapshot.status);
+        }).catch((error) => {
+          console.warn('[useEventStream] Failed to load interconnect snapshot:', error);
+        });
+
+        const compositeUnsub = () => {
+          if (directSseFallbackSubscriberRef.current) {
+            directSseFallbackSubscriberRef.current();
+            directSseFallbackSubscriberRef.current = null;
+          }
+          for (const unsub of unsubs) {
+            try {
+              unsub();
+            } catch (cleanupError) {
+              console.warn('[useEventStream] Error during relay unsubscribe:', cleanupError);
+            }
+          }
+        };
+
+        if (!isCleaningUpRef.current) {
+          unsubscribeRef.current = compositeUnsub;
+        } else {
+          compositeUnsub();
+        }
+
+        return;
+      }
+
+      isInterconnectRelayModeRef.current = false;
+      const sdkUnsub = kronoscodeClient.subscribeToGlobalEvents(
         (event: RoutedOpencodeEvent) => {
           const payload = event.payload as unknown as EventData;
           const payloadRecord = event.payload as unknown as Record<string, unknown>;
@@ -1863,6 +2037,31 @@ export const useEventStream = () => {
       } else {
         publishStatus('paused', 'Paused while hidden');
       }
+      return;
+    }
+
+    if (isInterconnectRelayModeRef.current) {
+      const runtimeAPIs = getRegisteredRuntimeAPIs();
+      const interconnect = runtimeAPIs?.interconnect;
+      const statusHint = hint ?? 'Requesting relay reconnect';
+      publishStatus('reconnecting', statusHint);
+      if (interconnect) {
+        void interconnect.forceReconnect(statusHint);
+      }
+
+      // Progressive recovery step 3: bootstrap + soft resync if still stalled after delay
+      setTimeout(() => {
+        const isStalled = Date.now() - lastEventTimestampRef.current > 40000;
+        if (isStalled) {
+          console.info('[useEventStream] Relay reconnect insufficient, triggering bootstrap resync...');
+          void stableBootstrapState('progressive_recovery_ladder');
+          const sessionId = currentSessionIdRef.current;
+          if (sessionId) {
+            void scheduleSoftResync(sessionId, 'progressive_recovery_ladder', getMessageLimit());
+          }
+        }
+      }, 5000);
+
       return;
     }
 
@@ -2046,7 +2245,7 @@ export const useEventStream = () => {
           if (now - lastEventTimestampRef.current > 45000) {
             Promise.resolve().then(async () => {
               try {
-                const healthy = await opencodeClient.checkHealth();
+                const healthy = await kronoscodeClient.checkHealth();
                 if (!healthy) {
                   scheduleReconnect('Refreshing stalled stream');
                   return;

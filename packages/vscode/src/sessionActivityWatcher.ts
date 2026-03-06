@@ -1,4 +1,4 @@
-import type { OpenCodeManager } from './opencode';
+import type { KronosCodeManager } from './kronoscode';
 
 // Session activity tracking (mirrors web server and desktop Tauri behavior)
 type ActivityPhase = 'idle' | 'busy' | 'cooldown';
@@ -132,7 +132,7 @@ const parseSseDataPayload = (block: string): Record<string, unknown> | null => {
   }
 };
 
-const waitForOpenCodePort = async (manager: OpenCodeManager, timeoutMs = 30000): Promise<number | null> => {
+const waitForKronosCodePort = async (manager: KronosCodeManager, timeoutMs = 30000): Promise<number | null> => {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const apiUrl = manager.getApiUrl();
@@ -151,13 +151,13 @@ const waitForOpenCodePort = async (manager: OpenCodeManager, timeoutMs = 30000):
   return null;
 };
 
-const buildOpenCodeUrl = (pathname: string, baseUrl: string): string => {
+const buildKronosCodeUrl = (pathname: string, baseUrl: string): string => {
   const normalized = baseUrl.replace(/\/+$/, '');
   return `${normalized}${pathname}`;
 };
 
 export const startGlobalEventWatcher = async (
-  manager: OpenCodeManager,
+  manager: KronosCodeManager,
   provider: { postMessage: (message: unknown) => void }
 ): Promise<void> => {
   if (globalEventWatcherAbortController) {
@@ -166,9 +166,9 @@ export const startGlobalEventWatcher = async (
 
   chatViewProvider = provider;
 
-  const port = await waitForOpenCodePort(manager);
+  const port = await waitForKronosCodePort(manager);
   if (!port) {
-    console.warn('[VSCode:Activity] OpenCode port unavailable; will retry');
+    console.warn('[VSCode:Activity] KronosCode port unavailable; will retry');
     setTimeout(() => startGlobalEventWatcher(manager, provider), 2000);
     return;
   }
@@ -187,11 +187,11 @@ export const startGlobalEventWatcher = async (
       try {
         const baseUrl = manager.getApiUrl();
         if (!baseUrl) {
-          throw new Error('OpenCode API URL not available');
+          throw new Error('KronosCode API URL not available');
         }
 
-        const url = buildOpenCodeUrl('/global/event', baseUrl);
-        const authHeaders = manager.getOpenCodeAuthHeaders();
+        const url = buildKronosCodeUrl('/global/event', baseUrl);
+        const authHeaders = manager.getKronosCodeAuthHeaders();
         upstream = await fetch(url, {
           headers: {
             Accept: 'text/event-stream',

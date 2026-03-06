@@ -12,7 +12,7 @@ import { ProvidersSidebar } from '@/components/sections/providers/ProvidersSideb
 import { ProvidersPage } from '@/components/sections/providers/ProvidersPage';
 import { GitIdentitiesSidebar } from '@/components/sections/git-identities/GitIdentitiesSidebar';
 import { GitIdentitiesPage } from '@/components/sections/git-identities/GitIdentitiesPage';
-import { OpenChamberPage } from '@/components/sections/openchamber/OpenChamberPage';
+import { KronosChamberPage } from '@/components/sections/openchamber/KronosChamberPage';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
 
@@ -86,7 +86,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
       case 'git-identities':
         return <GitIdentitiesPage />;
       case 'settings':
-        return <OpenChamberPage />;
+        return <KronosChamberPage />;
       default:
         return null;
     }

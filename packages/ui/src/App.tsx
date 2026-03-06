@@ -21,7 +21,7 @@ import { isDesktopLocalOriginActive, isDesktopShell, isTauriShell } from '@/lib/
 import { OnboardingScreen } from '@/components/onboarding/OnboardingScreen';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/opencode/client';
 import { useFontPreferences } from '@/hooks/useFontPreferences';
 import { CODE_FONT_OPTION_MAP, DEFAULT_MONO_FONT, DEFAULT_UI_FONT, UI_FONT_OPTION_MAP } from '@/lib/fontOptions';
 import { ConfigUpdateOverlay } from '@/components/ui/ConfigUpdateOverlay';
@@ -126,7 +126,7 @@ function App({ apis }: AppProps) {
 
   React.useEffect(() => {
     const init = async () => {
-      // VS Code runtime bootstraps config + sessions after the managed OpenCode instance reports "connected".
+      // VS Code runtime bootstraps config + sessions after the managed KronosCode instance reports "connected".
       // Doing the default initialization here can race with startup and lead to one-shot failures.
       if (isVSCodeRuntime) {
         return;
@@ -151,7 +151,7 @@ function App({ apis }: AppProps) {
       if (!isConnected) {
         return;
       }
-      opencodeClient.setDirectory(currentDirectory);
+      kronoscodeClient.setDirectory(currentDirectory);
 
       await loadSessions();
     };
@@ -233,13 +233,13 @@ function App({ apis }: AppProps) {
       try {
         const res = await fetch('/health', { method: 'GET' });
         if (!res.ok) return;
-        const data = (await res.json().catch(() => null)) as null | { openCodeRunning?: unknown; lastOpenCodeError?: unknown };
+        const data = (await res.json().catch(() => null)) as null | { openCodeRunning?: unknown; lastKronosCodeError?: unknown };
         if (!data || cancelled) return;
         const openCodeRunning = data.openCodeRunning === true;
-        const err = typeof data.lastOpenCodeError === 'string' ? data.lastOpenCodeError : '';
+        const err = typeof data.lastKronosCodeError === 'string' ? data.lastKronosCodeError : '';
         const cliMissing =
           !openCodeRunning &&
-          /ENOENT|spawn\s+opencode|Unable\s+to\s+locate\s+the\s+opencode\s+CLI|OpenCode\s+CLI\s+not\s+found|opencode(\.exe)?\s+not\s+found|env:\s*(node|bun):\s*No\s+such\s+file\s+or\s+directory|(node|bun):\s*No\s+such\s+file\s+or\s+directory/i.test(err);
+          /ENOENT|spawn\s+kronoscode|Unable\s+to\s+locate\s+the\s+kronoscode\s+CLI|KronosCode\s+CLI\s+not\s+found|kronoscode(\.exe)?\s+not\s+found|env:\s*(node|bun):\s*No\s+such\s+file\s+or\s+directory|(node|bun):\s*No\s+such\s+file\s+or\s+directory/i.test(err);
         setShowCliOnboarding(cliMissing);
       } catch {
         // ignore
@@ -271,7 +271,7 @@ function App({ apis }: AppProps) {
   if (isVSCodeRuntime) {
     // Check if this is the Agent Manager panel
     const panelType = typeof window !== 'undefined' 
-      ? (window as { __OPENCHAMBER_PANEL_TYPE__?: 'chat' | 'agentManager' }).__OPENCHAMBER_PANEL_TYPE__ 
+      ? (window as { __KRONOSCHAMBER_PANEL_TYPE__?: 'chat' | 'agentManager' }).__KRONOSCHAMBER_PANEL_TYPE__ 
       : 'chat';
     
     if (panelType === 'agentManager') {

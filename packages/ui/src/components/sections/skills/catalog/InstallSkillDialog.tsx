@@ -38,21 +38,21 @@ interface InstallSkillDialogProps {
 export const InstallSkillDialog: React.FC<InstallSkillDialogProps> = ({ open, onOpenChange, item }) => {
   const { installSkills, isInstalling } = useSkillsCatalogStore();
   const [scope, setScope] = React.useState<'user' | 'project'>('user');
-  const [targetSource, setTargetSource] = React.useState<'opencode' | 'agents'>('opencode');
+  const [targetSource, setTargetSource] = React.useState<'kronoscode' | 'agents'>('kronoscode');
   const [conflictsOpen, setConflictsOpen] = React.useState(false);
   const [conflicts, setConflicts] = React.useState<SkillConflict[]>([]);
   const [baseRequest, setBaseRequest] = React.useState<{
     source: string;
     subpath?: string;
     scope: 'user' | 'project';
-    targetSource: 'opencode' | 'agents';
+    targetSource: 'kronoscode' | 'agents';
     skillDir: string;
   } | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
     setScope('user');
-    setTargetSource('opencode');
+    setTargetSource('kronoscode');
     setConflictsOpen(false);
     setConflicts([]);
     setBaseRequest(null);
@@ -62,7 +62,7 @@ export const InstallSkillDialog: React.FC<InstallSkillDialogProps> = ({ open, on
     source: string;
     subpath?: string;
     scope: 'user' | 'project';
-    targetSource: 'opencode' | 'agents';
+    targetSource: 'kronoscode' | 'agents';
     skillDir: string;
     conflictDecisions?: Record<string, ConflictDecision>;
   }) => {
@@ -150,7 +150,7 @@ export const InstallSkillDialog: React.FC<InstallSkillDialogProps> = ({ open, on
                 onValueChange={(v) => {
                   const next = locationPartsFrom(v as SkillLocationValue);
                   setScope(next.scope);
-                  setTargetSource(next.source === 'agents' ? 'agents' : 'opencode');
+                  setTargetSource(next.source === 'agents' ? 'agents' : 'kronoscode');
                 }}
               >
                 <SelectTrigger className="!h-9 w-full sm:w-auto">

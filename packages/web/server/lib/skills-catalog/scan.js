@@ -145,7 +145,7 @@ export async function scanSkillsRepository({
         .filter((p) => p.endsWith('/SKILL.md') || p === 'SKILL.md');
     }
 
-    // Root-level SKILL.md doesn't map cleanly to OpenCode's "skill name == folder name" convention.
+    // Root-level SKILL.md doesn't map cleanly to KronosCode's "skill name == folder name" convention.
     const uniqueSkillDirs = Array.from(
       new Set(
         skillMdPaths
@@ -188,7 +188,7 @@ export async function scanSkillsRepository({
 
         const installable = validateSkillName(skillName);
         if (!installable) {
-          warnings.push('Skill directory name is not a valid OpenCode skill name');
+          warnings.push('Skill directory name is not a valid KronosCode skill name');
         }
 
         items.push({

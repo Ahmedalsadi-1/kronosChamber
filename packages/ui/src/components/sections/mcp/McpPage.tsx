@@ -327,7 +327,7 @@ const EnvEditor: React.FC<EnvEditorProps> = ({ value, onChange }) => {
 
       {hasSensitiveValues && (
         <p className="typography-micro text-muted-foreground/60">
-          ⚠ Values are stored as plain text in opencode.json
+          ⚠ Values are stored as plain text in kronoscode.json
         </p>
       )}
     </div>
@@ -465,7 +465,7 @@ export const McpPage: React.FC = () => {
       const success = isNewServer ? await createMcp(draft) : await updateMcp(name, draft);
       if (success) {
         if (isNewServer) { setMcpDraft(null); setSelectedMcp(name); }
-        toast.success(isNewServer ? 'MCP server created. OpenCode reloading…' : 'Saved. OpenCode reloading…');
+        toast.success(isNewServer ? 'MCP server created. KronosCode reloading…' : 'Saved. KronosCode reloading…');
       } else {
         toast.error('Failed to save');
       }
@@ -724,8 +724,8 @@ export const McpPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Delete "{selectedMcpName}"?</DialogTitle>
             <DialogDescription>
-              This removes the server from <code className="text-foreground">opencode.json</code>.
-              OpenCode will need to reload.
+              This removes the server from <code className="text-foreground">kronoscode.json</code>.
+              KronosCode will need to reload.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -48,7 +48,9 @@ import { useDirectoryShowHidden } from '@/lib/directoryShowHidden';
 import { useFilesViewShowGitignored } from '@/lib/filesViewShowGitignored';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { cn } from '@/lib/utils';
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
+import { openDesktopPath } from '@/lib/desktop';
+import FileOpenChooser from '@/components/files/FileOpenChooser'; // Import as default
 
 type FileNode = {
   name: string;
@@ -191,10 +193,11 @@ interface FileRowProps {
   };
   contextMenuPath: string | null;
   setContextMenuPath: (path: string | null) => void;
-  onSelect: (node: FileNode) => void;
+  // onSelect: (node: FileNode) => void; // Removed - handled by FileOpenChooser
   onToggle: (path: string) => void;
   onRevealPath: (path: string) => void;
   onOpenDialog: (type: 'createFile' | 'createFolder' | 'rename' | 'delete', data: { path: string; name?: string; type?: 'file' | 'directory' }) => void;
+  rootDirectory: string; // Add rootDirectory prop
 }
 
 const FileRow: React.FC<FileRowProps> = ({
@@ -206,10 +209,11 @@ const FileRow: React.FC<FileRowProps> = ({
   permissions,
   contextMenuPath,
   setContextMenuPath,
-  onSelect,
+  // onSelect, // Removed
   onToggle,
   onRevealPath,
   onOpenDialog,
+  rootDirectory, // Added
 }) => {
   const isDir = node.type === 'directory';
   const { canRename, canCreateFile, canCreateFolder, canDelete, canReveal } = permissions;
@@ -220,53 +224,62 @@ const FileRow: React.FC<FileRowProps> = ({
     setContextMenuPath(node.path);
   }, [canRename, canCreateFile, canCreateFolder, canDelete, canReveal, node.path, setContextMenuPath]);
 
-  const handleInteraction = React.useCallback(() => {
+  const handleToggleDirectory = React.useCallback(() => {
     if (isDir) {
       onToggle(node.path);
-    } else {
-      onSelect(node);
     }
-  }, [isDir, node, onSelect, onToggle]);
+  }, [isDir, node, onToggle]);
 
   const handleMenuButtonClick = React.useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
     setContextMenuPath(node.path);
   }, [node.path, setContextMenuPath]);
 
+  const buttonContent = (
+    <button
+      type="button"
+      className={cn(
+        'flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-foreground transition-colors pr-8 select-none',
+        isActive ? 'bg-interactive-selection/70' : 'hover:bg-interactive-hover/40'
+      )}
+      title={node.path}
+      onClick={isDir ? handleToggleDirectory : undefined} // Only handle click for directories here
+    >
+      {isDir ? (
+        isExpanded ? (
+          <RiFolderOpenFill className="h-4 w-4 flex-shrink-0 text-primary/60" />
+        ) : (
+          <RiFolder3Fill className="h-4 w-4 flex-shrink-0 text-primary/60" />
+        )
+      ) : (
+        getFileIcon(node.extension)
+      )}
+      <span className="min-w-0 flex-1 truncate typography-meta" title={node.path}>
+        {node.name}
+      </span>
+      {!isDir && status && <FileStatusDot status={status} />}
+      {isDir && badge && (
+        <span className="text-xs flex items-center gap-1 ml-auto mr-1">
+          {badge.modified > 0 && <span className="text-[var(--status-warning)]">M{badge.modified}</span>}
+          {badge.added > 0 && <span className="text-[var(--status-success)]">+{badge.added}</span>}
+        </span>
+      )}
+    </button>
+  );
+
   return (
     <div
       className="group relative flex items-center"
       onContextMenu={handleContextMenu}
     >
-      <button
-        type="button"
-        onClick={handleInteraction}
-        onContextMenu={handleContextMenu}
-        className={cn(
-          'flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-foreground transition-colors pr-8 select-none',
-          isActive ? 'bg-interactive-selection/70' : 'hover:bg-interactive-hover/40'
-        )}
-      >
-        {isDir ? (
-          isExpanded ? (
-            <RiFolderOpenFill className="h-4 w-4 flex-shrink-0 text-primary/60" />
-          ) : (
-            <RiFolder3Fill className="h-4 w-4 flex-shrink-0 text-primary/60" />
-          )
-        ) : (
-          getFileIcon(node.extension)
-        )}
-        <span className="min-w-0 flex-1 truncate typography-meta" title={node.path}>
-          {node.name}
-        </span>
-        {!isDir && status && <FileStatusDot status={status} />}
-        {isDir && badge && (
-          <span className="text-xs flex items-center gap-1 ml-auto mr-1">
-            {badge.modified > 0 && <span className="text-[var(--status-warning)]">M{badge.modified}</span>}
-            {badge.added > 0 && <span className="text-[var(--status-success)]">+{badge.added}</span>}
-          </span>
-        )}
-      </button>
+      {isDir ? (
+        buttonContent
+      ) : (
+        <FileOpenChooser filePath={node.path} directory={rootDirectory}>
+          {buttonContent}
+        </FileOpenChooser>
+      )}
+
       {(canRename || canCreateFile || canCreateFolder || canDelete || canReveal) && (
         <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
           <DropdownMenu
@@ -349,7 +362,8 @@ export const SidebarFilesTree: React.FC = () => {
   const showHidden = useDirectoryShowHidden();
   const showGitignored = useFilesViewShowGitignored();
   const searchFiles = useFileSearchStore((state) => state.searchFiles);
-  const openContextFile = useUIStore((state) => state.openContextFile);
+  // const openContextFile = useUIStore((state) => state.openContextFile); // Removed as FileOpenChooser handles
+  // const setActiveMainTab = useUIStore((state) => state.setActiveMainTab); // Removed as FileOpenChooser handles
   const gitStatus = useGitStatus(currentDirectory);
 
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -379,6 +393,7 @@ export const SidebarFilesTree: React.FC = () => {
   const [dialogData, setDialogData] = React.useState<{ path: string; name?: string; type?: 'file' | 'directory' } | null>(null);
   const [dialogInputValue, setDialogInputValue] = React.useState('');
   const [isDialogSubmitting, setIsDialogSubmitting] = React.useState(false);
+  // const [pendingOpenFile, setPendingOpenFile] = React.useState<FileNode | null>(null); // Removed
 
   const canCreateFile = Boolean(files.writeFile);
   const canCreateFolder = Boolean(files.createDirectory);
@@ -441,7 +456,7 @@ export const SidebarFilesTree: React.FC = () => {
           isDirectory: entry.isDirectory,
         }));
       } else {
-        const result = await opencodeClient.listLocalDirectory(normalizedDir, { respectGitignore });
+        const result = await kronoscodeClient.listLocalDirectory(normalizedDir, { respectGitignore });
         entries = result.map((entry) => ({
           name: entry.name,
           path: entry.path,
@@ -631,14 +646,6 @@ export const SidebarFilesTree: React.FC = () => {
 
   // --- File operations ---
 
-  const handleOpenFile = React.useCallback((node: FileNode) => {
-    if (!root) return;
-
-    setSelectedPath(root, node.path);
-    addOpenPath(root, node.path);
-    openContextFile(root, node.path);
-  }, [addOpenPath, openContextFile, root, setSelectedPath]);
-
   const toggleDirectory = React.useCallback(async (dirPath: string) => {
     const normalized = normalizePath(dirPath);
     if (!root) return;
@@ -757,7 +764,7 @@ export const SidebarFilesTree: React.FC = () => {
             permissions={{ canRename, canCreateFile, canCreateFolder, canDelete, canReveal }}
             contextMenuPath={contextMenuPath}
             setContextMenuPath={setContextMenuPath}
-            onSelect={handleOpenFile}
+            rootDirectory={root} // Pass rootDirectory
             onToggle={toggleDirectory}
             onRevealPath={handleRevealPath}
             onOpenDialog={handleOpenDialog}
@@ -770,7 +777,7 @@ export const SidebarFilesTree: React.FC = () => {
         </li>
       );
     });
-  }, [childrenByDir, expandedPaths, handleOpenFile, selectedPath, toggleDirectory, handleOpenDialog, canCreateFile, canCreateFolder, canRename, canDelete, contextMenuPath, getFileStatus, getFolderBadge]);
+  }, [childrenByDir, expandedPaths, selectedPath, toggleDirectory, handleOpenDialog, canCreateFile, canCreateFolder, canRename, canDelete, contextMenuPath, getFileStatus, getFolderBadge, handleRevealPath, root]);
 
   const hasTree = Boolean(root && childrenByDir[root]);
 
@@ -839,23 +846,24 @@ export const SidebarFilesTree: React.FC = () => {
               const isActive = selectedPath === node.path;
               return (
                 <li key={node.path}>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenFile(node)}
-                    className={cn(
-                      'flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-foreground transition-colors',
-                      isActive ? 'bg-interactive-selection/70' : 'hover:bg-interactive-hover/40'
-                    )}
-                    title={node.path}
-                  >
-                    {getFileIcon(node.extension)}
-                    <span
-                      className="min-w-0 flex-1 truncate typography-meta"
-                      style={{ direction: 'rtl', textAlign: 'left' }}
+                  <FileOpenChooser filePath={node.path} directory={root}>
+                    <button
+                      type="button"
+                      className={cn(
+                        'flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-foreground transition-colors',
+                        isActive ? 'bg-interactive-selection/70' : 'hover:bg-interactive-hover/40'
+                      )}
+                      title={node.path}
                     >
-                      {node.relativePath ?? node.path}
-                    </span>
-                  </button>
+                      {getFileIcon(node.extension)}
+                      <span
+                        className="min-w-0 flex-1 truncate typography-meta"
+                        style={{ direction: 'rtl', textAlign: 'left' }}
+                      >
+                        {node.relativePath ?? node.path}
+                      </span>
+                    </button>
+                  </FileOpenChooser>
                 </li>
               );
             })

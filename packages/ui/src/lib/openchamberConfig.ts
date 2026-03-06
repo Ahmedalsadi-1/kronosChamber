@@ -1,5 +1,5 @@
 /**
- * OpenChamber project-level configuration service.
+ * KronosChamber project-level configuration service.
  * Stores per-project settings in ~/.config/openchamber/<projectId>.json.
  * Migrates from legacy <project>/.openchamber/openchamber.json.
  */
@@ -48,33 +48,33 @@ const sha1Hex = async (value: string): Promise<string | null> => {
  */
 function getRuntimeFilesAPI(): FilesAPI | null {
   if (typeof window === 'undefined') return null;
-  const apis = (window as typeof window & { __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__OPENCHAMBER_RUNTIME_APIS__;
+  const apis = (window as typeof window & { __KRONOSCHAMBER_RUNTIME_APIS__?: RuntimeAPIs }).__KRONOSCHAMBER_RUNTIME_APIS__;
   if (apis?.files) {
     return apis.files;
   }
   return null;
 }
 
-export interface OpenChamberConfig {
+export interface KronosChamberConfig {
   'setup-worktree'?: string[];
   projectNotes?: string;
-  projectTodos?: OpenChamberProjectTodoItem[];
+  projectTodos?: KronosChamberProjectTodoItem[];
 }
 
-export interface OpenChamberProjectTodoItem {
+export interface KronosChamberProjectTodoItem {
   id: string;
   text: string;
   completed: boolean;
   createdAt: number;
 }
 
-export interface OpenChamberProjectNotesTodos {
+export interface KronosChamberProjectNotesTodos {
   notes: string;
-  todos: OpenChamberProjectTodoItem[];
+  todos: KronosChamberProjectTodoItem[];
 }
 
-export const OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH = 1000;
-export const OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH = 120;
+export const KRONOSCHAMBER_PROJECT_NOTES_MAX_LENGTH = 1000;
+export const KRONOSCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH = 120;
 
 const normalize = (value: string): string => {
   if (!value) return '';
@@ -96,7 +96,7 @@ const getLegacyConfigPath = (projectDirectory: string): string => {
 };
 
 const getBaseUrl = (): string => {
-  const defaultBaseUrl = import.meta.env.VITE_OPENCODE_URL || '/api';
+  const defaultBaseUrl = import.meta.env.VITE_KRONOSCODE_URL || '/api';
   if (defaultBaseUrl.startsWith('/')) {
     return defaultBaseUrl;
   }
@@ -178,7 +178,7 @@ const writeTextFile = async (path: string, content: string): Promise<boolean> =>
 };
 
 const resolveHomeDirectory = async (): Promise<string | null> => {
-  // VSCode webview sets __OPENCHAMBER_HOME__ to workspace folder (not OS home).
+  // VSCode webview sets __KRONOSCHAMBER_HOME__ to workspace folder (not OS home).
   // For user config (~/.config/openchamber), always use /api/fs/home in VSCode.
   if (!isVSCodeRuntime()) {
     const desktopHome = await getDesktopHomeDirectory().catch(() => null);
@@ -298,15 +298,15 @@ const sanitizeProjectNotes = (value: unknown): string => {
   if (typeof value !== 'string') {
     return '';
   }
-  return trimToMaxLength(value, OPENCHAMBER_PROJECT_NOTES_MAX_LENGTH);
+  return trimToMaxLength(value, KRONOSCHAMBER_PROJECT_NOTES_MAX_LENGTH);
 };
 
-const sanitizeProjectTodoItems = (value: unknown): OpenChamberProjectTodoItem[] => {
+const sanitizeProjectTodoItems = (value: unknown): KronosChamberProjectTodoItem[] => {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  const sanitized: OpenChamberProjectTodoItem[] = [];
+  const sanitized: KronosChamberProjectTodoItem[] = [];
   for (const entry of value) {
     if (!entry || typeof entry !== 'object') {
       continue;
@@ -321,7 +321,7 @@ const sanitizeProjectTodoItems = (value: unknown): OpenChamberProjectTodoItem[] 
 
     const id = typeof record.id === 'string' ? record.id.trim() : '';
     const textRaw = typeof record.text === 'string' ? record.text : '';
-    const text = trimToMaxLength(textRaw.trim(), OPENCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH);
+    const text = trimToMaxLength(textRaw.trim(), KRONOSCHAMBER_PROJECT_TODO_TEXT_MAX_LENGTH);
     if (!id || !text) {
       continue;
     }
@@ -347,7 +347,7 @@ const sanitizeProjectTodoItems = (value: unknown): OpenChamberProjectTodoItem[] 
 const sanitizeProjectNotesAndTodos = (value: {
   notes?: unknown;
   todos?: unknown;
-} | null | undefined): OpenChamberProjectNotesTodos => {
+} | null | undefined): KronosChamberProjectNotesTodos => {
   return {
     notes: sanitizeProjectNotes(value?.notes),
     todos: sanitizeProjectTodoItems(value?.todos),
@@ -358,7 +358,7 @@ const sanitizeProjectNotesAndTodos = (value: {
  * Read the config for a project.
  * Returns null if file doesn't exist or is invalid.
  */
-export async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberConfig | null> {
+export async function readKronosChamberConfig(project: ProjectRef): Promise<KronosChamberConfig | null> {
   const projectDirectory = typeof project?.path === 'string' ? project.path.trim() : '';
   if (!projectDirectory) {
     return null;
@@ -375,7 +375,7 @@ export async function readOpenChamberConfig(project: ProjectRef): Promise<OpenCh
     return text;
   };
 
-  const parseConfig = (text: string | null): OpenChamberConfig | null => {
+  const parseConfig = (text: string | null): KronosChamberConfig | null => {
     if (typeof text !== 'string') {
       return null;
     }
@@ -388,7 +388,7 @@ export async function readOpenChamberConfig(project: ProjectRef): Promise<OpenCh
       if (!parsed || typeof parsed !== 'object') {
         return null;
       }
-      return parsed as OpenChamberConfig;
+      return parsed as KronosChamberConfig;
     } catch {
       return null;
     }
@@ -412,9 +412,9 @@ export async function readOpenChamberConfig(project: ProjectRef): Promise<OpenCh
 
   // Best-effort write + delete legacy.
   try {
-    const wrote = await writeOpenChamberConfig(project, legacyConfig);
+    const wrote = await writeKronosChamberConfig(project, legacyConfig);
     if (wrote) {
-      await deleteLegacyOpenChamberConfig(projectDirectory);
+      await deleteLegacyKronosChamberConfig(projectDirectory);
     }
   } catch {
     // Ignore migration failures; still return legacy content.
@@ -426,9 +426,9 @@ export async function readOpenChamberConfig(project: ProjectRef): Promise<OpenCh
 /**
  * Write the per-user config for a project.
  */
-export async function writeOpenChamberConfig(
+export async function writeKronosChamberConfig(
   project: ProjectRef,
-  config: OpenChamberConfig
+  config: KronosChamberConfig
 ): Promise<boolean> {
   const projectDirectory = typeof project?.path === 'string' ? project.path.trim() : '';
   if (!projectDirectory) {
@@ -459,30 +459,30 @@ export async function writeOpenChamberConfig(
 /**
  * Update specific keys in the config, preserving other values.
  */
-export async function updateOpenChamberConfig(
+export async function updateKronosChamberConfig(
   project: ProjectRef,
-  updates: Partial<OpenChamberConfig>
+  updates: Partial<KronosChamberConfig>
 ): Promise<boolean> {
-  const existing = await readOpenChamberConfig(project) || {};
+  const existing = await readKronosChamberConfig(project) || {};
   const merged = { ...existing, ...updates };
-  return writeOpenChamberConfig(project, merged);
+  return writeKronosChamberConfig(project, merged);
 }
 
 /**
  * Get worktree setup commands from config.
  */
 export async function getWorktreeSetupCommands(project: ProjectRef): Promise<string[]> {
-  const config = await readOpenChamberConfig(project);
+  const config = await readKronosChamberConfig(project);
   return config?.['setup-worktree'] ?? [];
 }
 
 export async function saveWorktreeSetupCommands(project: ProjectRef, commands: string[]): Promise<boolean> {
   const filtered = commands.filter((cmd) => cmd.trim().length > 0);
-  return updateOpenChamberConfig(project, { 'setup-worktree': filtered });
+  return updateKronosChamberConfig(project, { 'setup-worktree': filtered });
 }
 
-export async function getProjectNotesAndTodos(project: ProjectRef): Promise<OpenChamberProjectNotesTodos> {
-  const config = await readOpenChamberConfig(project);
+export async function getProjectNotesAndTodos(project: ProjectRef): Promise<KronosChamberProjectNotesTodos> {
+  const config = await readKronosChamberConfig(project);
   return sanitizeProjectNotesAndTodos({
     notes: config?.projectNotes,
     todos: config?.projectTodos,
@@ -491,14 +491,14 @@ export async function getProjectNotesAndTodos(project: ProjectRef): Promise<Open
 
 export async function saveProjectNotesAndTodos(
   project: ProjectRef,
-  value: OpenChamberProjectNotesTodos
+  value: KronosChamberProjectNotesTodos
 ): Promise<boolean> {
   const sanitized = sanitizeProjectNotesAndTodos({
     notes: value.notes,
     todos: value.todos,
   });
 
-  return updateOpenChamberConfig(project, {
+  return updateKronosChamberConfig(project, {
     projectNotes: sanitized.notes,
     projectTodos: sanitized.todos,
   });
@@ -523,7 +523,7 @@ export function substituteCommandVariables(
     .replace(/\$\{ROOT_WORKTREE_PATH\}/g, variables.rootWorktreePath);
 }
 
-async function deleteLegacyOpenChamberConfig(projectDirectory: string): Promise<void> {
+async function deleteLegacyKronosChamberConfig(projectDirectory: string): Promise<void> {
   const legacyPath = getLegacyConfigPath(projectDirectory);
   const runtimeFiles = getRuntimeFilesAPI();
 

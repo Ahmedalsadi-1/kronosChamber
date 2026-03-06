@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface Window {
-    __opencodeDebug?: {
+    __kronoscodeDebug?: {
         getLastAssistantMessage: () => unknown;
         getAllMessages: (truncate?: boolean) => unknown[];
         truncateMessages: (messages: unknown[]) => unknown[];

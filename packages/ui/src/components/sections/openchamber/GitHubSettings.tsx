@@ -154,20 +154,21 @@ export const GitHubSettings: React.FC = () => {
       void (async () => {
         try {
           const result = await pollOnce(flow.deviceCode);
-            if (result.connected) {
-              toast.success('GitHub connected');
-              setFlow(null);
-              stopPolling();
-              await refreshStatus(runtimeGitHub, { force: true });
-              return;
-            }
+          if (result.connected === true) {
+            toast.success('GitHub connected');
+            setFlow(null);
+            stopPolling();
+            await refreshStatus(runtimeGitHub, { force: true });
+            return;
+          }
 
-          if (result.status === 'slow_down') {
+          if ('status' in result && result.status === 'slow_down') {
             setPollIntervalMs((prev) => (prev ? prev + 5000 : 5000));
           }
 
-          if (result.status === 'expired_token' || result.status === 'access_denied') {
-            toast.error(result.error || 'GitHub authorization failed');
+          if ('status' in result && (result.status === 'expired_token' || result.status === 'access_denied')) {
+            const errorMessage = 'error' in result && result.error ? result.error : 'GitHub authorization failed';
+            toast.error(errorMessage);
             setFlow(null);
             stopPolling();
           }
@@ -372,7 +373,7 @@ export const GitHubSettings: React.FC = () => {
       {flow ? (
         <div className="space-y-3 rounded-lg border bg-background/50 p-3">
           <div className="space-y-1">
-            <div className="typography-ui-label text-foreground">Authorize OpenChamber</div>
+            <div className="typography-ui-label text-foreground">Authorize KronosChamber</div>
             <div className="typography-meta text-muted-foreground">
               In GitHub, enter this code:
             </div>

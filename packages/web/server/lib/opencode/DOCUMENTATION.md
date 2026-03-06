@@ -1,27 +1,27 @@
-# OpenCode Module Documentation
+# KronosCode Module Documentation
 
 ## Purpose
-This module provides OpenCode server integration utilities for the web server runtime, including configuration management, provider authentication, and UI authentication with rate limiting.
+This module provides KronosCode server integration utilities for the web server runtime, including configuration management, provider authentication, and UI authentication with rate limiting.
 
 ## Entrypoints and structure
-- `packages/web/server/lib/opencode/index.js`: public entrypoint (currently baseline placeholder).
-- `packages/web/server/lib/opencode/auth.js`: provider authentication file operations.
-- `packages/web/server/lib/opencode/shared.js`: shared utilities for config, markdown, skills, and git helpers.
-- `packages/web/server/lib/opencode/ui-auth.js`: UI session authentication with rate limiting.
+- `packages/web/server/lib/kronoscode/index.js`: public entrypoint (currently baseline placeholder).
+- `packages/web/server/lib/kronoscode/auth.js`: provider authentication file operations.
+- `packages/web/server/lib/kronoscode/shared.js`: shared utilities for config, markdown, skills, and git helpers.
+- `packages/web/server/lib/kronoscode/ui-auth.js`: UI session authentication with rate limiting.
 
 ## Public exports (auth.js)
-- `readAuthFile()`: Reads and parses `~/.local/share/opencode/auth.json`.
+- `readAuthFile()`: Reads and parses `~/.local/share/kronoscode/auth.json`.
 - `writeAuthFile(auth)`: Writes auth file with automatic backup.
 - `removeProviderAuth(providerId)`: Removes a provider's auth entry.
 - `getProviderAuth(providerId)`: Returns auth for a specific provider or null.
 - `listProviderAuths()`: Returns list of provider IDs with configured auth.
 - `AUTH_FILE`: Auth file path constant.
-- `OPENCODE_DATA_DIR`: OpenCode data directory path constant.
+- `KRONOSCODE_DATA_DIR`: KronosCode data directory path constant.
 
 ## Public exports (shared.js)
-- `OPENCODE_CONFIG_DIR`, `AGENT_DIR`, `COMMAND_DIR`, `SKILL_DIR`, `CONFIG_FILE`, `CUSTOM_CONFIG_FILE`: Path constants.
+- `KRONOSCODE_CONFIG_DIR`, `AGENT_DIR`, `COMMAND_DIR`, `SKILL_DIR`, `CONFIG_FILE`, `CUSTOM_CONFIG_FILE`: Path constants.
 - `AGENT_SCOPE`, `COMMAND_SCOPE`, `SKILL_SCOPE`: Scope constants with USER and PROJECT values.
-- `ensureDirs()`: Creates required OpenCode directories.
+- `ensureDirs()`: Creates required KronosCode directories.
 - `parseMdFile(filePath)`, `writeMdFile(filePath, frontmatter, body)`: Markdown file operations with YAML frontmatter.
 - `getConfigPaths(workingDirectory)`, `readConfigLayers(workingDirectory)`, `readConfig(workingDirectory)`: Config file operations with layer merging (user, project, custom).
 - `writeConfig(config, filePath)`: Writes config with automatic backup.
@@ -44,14 +44,14 @@ This module provides OpenCode server integration utilities for the web server ru
   - `dispose()`: Cleans up timers and state.
 
 ## Storage and configuration
-- Provider auth: `~/.local/share/opencode/auth.json`.
-- User config: `~/.config/opencode/opencode.json`.
-- Project config: `<workingDirectory>/.opencode/opencode.json` or `opencode.json`.
-- Custom config: `OPENCODE_CONFIG` env var path.
-- Rate limit config: `OPENCHAMBER_RATE_LIMIT_MAX_ATTEMPTS`, `OPENCHAMBER_RATE_LIMIT_NO_IP_MAX_ATTEMPTS` env vars.
+- Provider auth: `~/.local/share/kronoscode/auth.json`.
+- User config: `~/.config/kronoscode/kronoscode.json`.
+- Project config: `<workingDirectory>/.kronoscode/kronoscode.json` or `kronoscode.json`.
+- Custom config: `KRONOSCODE_CONFIG` env var path.
+- Rate limit config: `KRONOSCHAMBER_RATE_LIMIT_MAX_ATTEMPTS`, `KRONOSCHAMBER_RATE_LIMIT_NO_IP_MAX_ATTEMPTS` env vars.
 
 ## Notes for contributors
-- This module serves as foundation for OpenCode-related server utilities.
+- This module serves as foundation for KronosCode-related server utilities.
 - Index.js is currently a baseline placeholder; direct imports use submodule paths.
 - All file writes include automatic backup before modification.
 - Config merging follows priority: custom > project > user.

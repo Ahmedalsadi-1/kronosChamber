@@ -1,5 +1,5 @@
 export type ClipboardCopyResult =
-  | { ok: true; method: 'clipboard' | 'execCommand' }
+  | { ok: true; method: 'clipboard' | 'execCommand'; error?: undefined }
   | { ok: false; error: string };
 
 export async function copyTextToClipboard(text: string): Promise<ClipboardCopyResult> {

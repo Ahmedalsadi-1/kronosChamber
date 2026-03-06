@@ -6,7 +6,7 @@ import {
   closeTerminal,
   restartTerminalSession,
   forceKillTerminal,
-} from '@openchamber/ui/lib/terminalApi';
+} from '@kronoscode-ai/ui/lib/terminalApi';
 import type {
   TerminalAPI,
   TerminalHandlers,
@@ -15,7 +15,7 @@ import type {
   ResizeTerminalPayload,
   TerminalSession,
   ForceKillOptions,
-} from '@openchamber/ui/lib/api/types';
+} from '@kronoscode-ai/ui/lib/api/types';
 
 const getRetryPolicy = (options?: TerminalStreamOptions) => {
   const retry = options?.retry;

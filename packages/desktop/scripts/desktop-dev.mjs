@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,7 +17,39 @@ function spawnProcess(command, args, opts = {}) {
   });
 }
 
+function withDesktopDevDefaults(baseEnv = process.env) {
+  const env = { ...baseEnv };
+
+  if (typeof env.OPENCHAMBER_DESKTOP_SKIP_WEB_BUILD !== 'string') {
+    env.OPENCHAMBER_DESKTOP_SKIP_WEB_BUILD = '1';
+  }
+  if (typeof env.OPENCHAMBER_DESKTOP_SKIP_RESOURCE_SYNC !== 'string') {
+    env.OPENCHAMBER_DESKTOP_SKIP_RESOURCE_SYNC = '1';
+  }
+  if (typeof env.OPENCHAMBER_DESKTOP_SKIP_SIDECAR_BUILD !== 'string') {
+    env.OPENCHAMBER_DESKTOP_SKIP_SIDECAR_BUILD = '1';
+  }
+  if (typeof env.OPENCHAMBER_DESKTOP_DISABLE_VITE !== 'string') {
+    env.OPENCHAMBER_DESKTOP_DISABLE_VITE = '1';
+  }
+
+  return env;
+}
+
 async function main() {
+  const prebuildEnv = withDesktopDevDefaults(process.env);
+  const prebuild = spawnSync('node', ['./packages/desktop/scripts/build-sidecar.mjs'], {
+    cwd: repoRoot,
+    env: prebuildEnv,
+    stdio: 'inherit',
+  });
+  if (prebuild.error) {
+    throw prebuild.error;
+  }
+  if (prebuild.status !== 0) {
+    throw new Error(`Sidecar prebuild failed with status ${prebuild.status}`);
+  }
+
   const tauriProcess = spawnProcess('bun', [
     '--cwd',
     desktopDir,
@@ -27,7 +59,9 @@ async function main() {
     'devtools',
     '--config',
     './src-tauri/tauri.dev.conf.json',
-  ]);
+  ], {
+    env: withDesktopDevDefaults(process.env),
+  });
 
   let cleaning = false;
 

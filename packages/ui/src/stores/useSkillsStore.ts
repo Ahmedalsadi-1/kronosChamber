@@ -9,12 +9,12 @@ import {
 } from "@/lib/configUpdate";
 import { getSafeStorage } from "./utils/safeStorage";
 
-import { opencodeClient } from '@/lib/opencode/client';
+import { kronoscodeClient } from '@/lib/kronoscode/client';
 
 const getCurrentDirectory = (): string | null => {
-  const opencodeDirectory = opencodeClient.getDirectory();
-  if (typeof opencodeDirectory === 'string' && opencodeDirectory.trim().length > 0) {
-    return opencodeDirectory;
+  const kronoscodeDirectory = kronoscodeClient.getDirectory();
+  if (typeof kronoscodeDirectory === 'string' && kronoscodeDirectory.trim().length > 0) {
+    return kronoscodeDirectory;
   }
 
   try {
@@ -31,7 +31,7 @@ const getCurrentDirectory = (): string | null => {
 };
 
 export type SkillScope = 'user' | 'project';
-export type SkillSource = 'opencode' | 'claude' | 'agents';
+export type SkillSource = 'kronoscode' | 'claude' | 'agents';
 
 export interface SupportingFile {
   name: string;
@@ -69,8 +69,8 @@ export interface DiscoveredSkill {
 }
 
 /** Parse the domain group folder from a skill file path.
- *  e.g. "~/.config/opencode/skills/automation-ai/ai-production/SKILL.md" → "automation-ai"
- *  e.g. "~/.config/opencode/skills/theme-system/SKILL.md"                → undefined (flat)
+ *  e.g. "~/.config/kronoscode/skills/automation-ai/ai-production/SKILL.md" → "automation-ai"
+ *  e.g. "~/.config/kronoscode/skills/theme-system/SKILL.md"                → undefined (flat)
  */
 function parseSkillGroup(path: string): string | undefined {
   const normalizedPath = path.replace(/\\/g, '/');
@@ -200,7 +200,7 @@ export const useSkillsStore = create<SkillsStore>()(
                 name: s.name,
                 path: s.path,
                 scope: s.scope ?? 'user',
-                source: s.source ?? 'opencode',
+                source: s.source ?? 'kronoscode',
                 description: s.sources?.md?.description || '',
                 group: parseSkillGroup(s.path),
               }));
@@ -267,7 +267,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const needsReload = payload?.requiresReload ?? false;
             if (needsReload) {
               requiresReload = true;
-              await refreshSkillsAfterOpenCodeRestart({
+              await refreshSkillsAfterKronosCodeRestart({
                 message: payload?.message,
                 delayMs: payload?.reloadDelayMs,
               });
@@ -316,7 +316,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const needsReload = payload?.requiresReload ?? false;
             if (needsReload) {
               requiresReload = true;
-              await refreshSkillsAfterOpenCodeRestart({
+              await refreshSkillsAfterKronosCodeRestart({
                 message: payload?.message,
                 delayMs: payload?.reloadDelayMs,
               });
@@ -357,7 +357,7 @@ export const useSkillsStore = create<SkillsStore>()(
             const needsReload = payload?.requiresReload ?? false;
             if (needsReload) {
               requiresReload = true;
-              await refreshSkillsAfterOpenCodeRestart({
+              await refreshSkillsAfterKronosCodeRestart({
                 message: payload?.message,
                 delayMs: payload?.reloadDelayMs,
               });
@@ -461,7 +461,7 @@ if (typeof window !== "undefined") {
   window.__zustand_skills_store__ = useSkillsStore;
 }
 
-async function waitForOpenCodeConnection(delayMs?: number) {
+async function waitForKronosCodeConnection(delayMs?: number) {
   const initialPause = typeof delayMs === "number" && delayMs > 0
     ? Math.min(delayMs, FAST_HEALTH_POLL_INTERVAL_MS)
     : 0;
@@ -476,14 +476,14 @@ async function waitForOpenCodeConnection(delayMs?: number) {
 
   while (Date.now() - start < MAX_HEALTH_WAIT_MS) {
     attempt += 1;
-    updateConfigUpdateMessage(`Waiting for OpenCode… (attempt ${attempt})`);
+    updateConfigUpdateMessage(`Waiting for KronosCode… (attempt ${attempt})`);
 
     try {
-      const isHealthy = await opencodeClient.checkHealth();
+      const isHealthy = await kronoscodeClient.checkHealth();
       if (isHealthy) {
         return;
       }
-      lastError = new Error("OpenCode health check reported not ready");
+      lastError = new Error("KronosCode health check reported not ready");
     } catch (error) {
       lastError = error;
     }
@@ -502,10 +502,10 @@ async function waitForOpenCodeConnection(delayMs?: number) {
     await sleep(waitMs);
   }
 
-  throw lastError || new Error("OpenCode did not become ready in time");
+  throw lastError || new Error("KronosCode did not become ready in time");
 }
 
-export async function refreshSkillsAfterOpenCodeRestart(options?: { message?: string; delayMs?: number }) {
+export async function refreshSkillsAfterKronosCodeRestart(options?: { message?: string; delayMs?: number }) {
   try {
     updateConfigUpdateMessage(options?.message || "Refreshing skills…");
   } catch {
@@ -513,7 +513,7 @@ export async function refreshSkillsAfterOpenCodeRestart(options?: { message?: st
   }
 
   try {
-    await waitForOpenCodeConnection(options?.delayMs);
+    await waitForKronosCodeConnection(options?.delayMs);
     updateConfigUpdateMessage("Refreshing skills…");
     const skillsStore = useSkillsStore.getState();
     const loaded = await skillsStore.loadSkills();
@@ -521,7 +521,7 @@ export async function refreshSkillsAfterOpenCodeRestart(options?: { message?: st
       emitConfigChange("skills", { source: CONFIG_EVENT_SOURCE });
     }
   } catch {
-    updateConfigUpdateMessage("OpenCode refresh failed. Please retry.");
+    updateConfigUpdateMessage("KronosCode refresh failed. Please retry.");
     await sleep(1500);
   } finally {
     finishConfigUpdate();

@@ -1,7 +1,7 @@
 /**
  * Text Summarization Service
  * 
- * Uses the opencode.ai zen API with gpt-5-nano for fast, lightweight summarization.
+ * Uses the kronoscode.ai zen API with gpt-5-nano for fast, lightweight summarization.
  * Used by all TTS implementations (Browser, Say, OpenAI).
  */
 
@@ -78,7 +78,7 @@ function extractZenOutputText(data) {
 }
 
 /**
- * Summarize text using the opencode.ai zen API
+ * Summarize text using the kronoscode.ai zen API
  * 
  * @param {Object} options
  * @param {string} options.text - The text to summarize

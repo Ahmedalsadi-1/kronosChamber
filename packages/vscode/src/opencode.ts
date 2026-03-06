@@ -11,7 +11,7 @@ import { randomBytes } from 'crypto';
 const READY_CHECK_TIMEOUT_MS = 30000;
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
-export type OpenCodeDebugInfo = {
+export type KronosCodeDebugInfo = {
   mode: 'managed' | 'external';
   status: ConnectionStatus;
   lastError?: string;
@@ -37,21 +37,21 @@ export type OpenCodeDebugInfo = {
   authSource: 'user-env' | 'generated' | 'rotated' | null;
 };
 
-export interface OpenCodeManager {
+export interface KronosCodeManager {
   start(workdir?: string): Promise<void>;
   stop(): Promise<void>;
   restart(): Promise<void>;
   setWorkingDirectory(path: string): Promise<{ success: boolean; restarted: boolean; path: string }>;
   getStatus(): ConnectionStatus;
   getApiUrl(): string | null;
-  getOpenCodeAuthHeaders(): Record<string, string>;
+  getKronosCodeAuthHeaders(): Record<string, string>;
   getWorkingDirectory(): string;
   isCliAvailable(): boolean;
-  getDebugInfo(): OpenCodeDebugInfo;
+  getDebugInfo(): KronosCodeDebugInfo;
   onStatusChange(callback: (status: ConnectionStatus, error?: string) => void): vscode.Disposable;
 }
 
-function generateSecureOpenCodePassword(): string {
+function generateSecureKronosCodePassword(): string {
   return randomBytes(32)
     .toString('base64')
     .replace(/\+/g, '-')
@@ -59,15 +59,15 @@ function generateSecureOpenCodePassword(): string {
     .replace(/=+$/g, '');
 }
 
-function buildOpenCodeAuthHeader(password: string): string {
-  return `Basic ${Buffer.from(`opencode:${password}`, 'utf8').toString('base64')}`;
+function buildKronosCodeAuthHeader(password: string): string {
+  return `Basic ${Buffer.from(`kronoscode:${password}`, 'utf8').toString('base64')}`;
 }
 
-function isValidOpenCodePassword(password: string): boolean {
+function isValidKronosCodePassword(password: string): boolean {
   return typeof password === 'string' && password.trim().length > 0;
 }
 
-function readOpenChamberSettings(): Record<string, unknown> {
+function readKronosChamberSettings(): Record<string, unknown> {
   const settingsPath = path.join(os.homedir(), '.config', 'openchamber', 'settings.json');
   try {
     const raw = fs.readFileSync(settingsPath, 'utf8');
@@ -121,13 +121,13 @@ function resolveOpencodeCliPath(): string | null {
   const configured = (() => {
     try {
       const config = vscode.workspace.getConfiguration('openchamber');
-      const raw = config.get<string>('opencodeBinary') || '';
+      const raw = config.get<string>('kronoscodeBinary') || '';
       const trimmed = raw.trim();
       if (!trimmed) return null;
       try {
         const stat = fs.statSync(trimmed);
         if (stat.isDirectory()) {
-          return path.join(trimmed, process.platform === 'win32' ? 'opencode.exe' : 'opencode');
+          return path.join(trimmed, process.platform === 'win32' ? 'kronoscode.exe' : 'kronoscode');
         }
       } catch {
         // ignore
@@ -142,10 +142,10 @@ function resolveOpencodeCliPath(): string | null {
     return configured;
   }
 
-  const sharedFromOpenChamber = (() => {
+  const sharedFromKronosChamber = (() => {
     try {
-      const settings = readOpenChamberSettings();
-      const candidate = settings.opencodeBinary;
+      const settings = readKronosChamberSettings();
+      const candidate = settings.kronoscodeBinary;
       if (typeof candidate !== 'string') {
         return null;
       }
@@ -156,15 +156,15 @@ function resolveOpencodeCliPath(): string | null {
     }
   })();
 
-  if (sharedFromOpenChamber && isExecutable(sharedFromOpenChamber)) {
-    return sharedFromOpenChamber;
+  if (sharedFromKronosChamber && isExecutable(sharedFromKronosChamber)) {
+    return sharedFromKronosChamber;
   }
 
   const explicit = [
-    process.env.OPENCODE_BINARY,
-    process.env.OPENCODE_PATH,
-    process.env.OPENCHAMBER_OPENCODE_PATH,
-    process.env.OPENCHAMBER_OPENCODE_BIN,
+    process.env.KRONOSCODE_BINARY,
+    process.env.KRONOSCODE_PATH,
+    process.env.KRONOSCHAMBER_KRONOSCODE_PATH,
+    process.env.KRONOSCHAMBER_KRONOSCODE_BIN,
   ]
     .map((v) => (typeof v === 'string' ? v.trim() : ''))
     .filter(Boolean);
@@ -177,10 +177,10 @@ function resolveOpencodeCliPath(): string | null {
 
   const home = os.homedir();
   const unixFallbacks = [
-    path.join(home, '.opencode', 'bin', 'opencode'),
-    path.join(home, '.bun', 'bin', 'opencode'),
-    path.join(home, '.local', 'bin', 'opencode'),
-    path.join(home, 'bin', 'opencode'),
+    path.join(home, '.kronoscode', 'bin', 'kronoscode'),
+    path.join(home, '.bun', 'bin', 'kronoscode'),
+    path.join(home, '.local', 'bin', 'kronoscode'),
+    path.join(home, 'bin', 'kronoscode'),
   ];
 
   const winFallbacks = (() => {
@@ -190,17 +190,17 @@ function resolveOpencodeCliPath(): string | null {
     const programData = process.env.ProgramData || 'C:\\ProgramData';
 
     return [
-      path.join(userProfile, '.opencode', 'bin', 'opencode.exe'),
-      path.join(userProfile, '.opencode', 'bin', 'opencode.cmd'),
-      path.join(appData, 'npm', 'opencode.cmd'),
-      path.join(userProfile, 'scoop', 'shims', 'opencode.cmd'),
-      path.join(programData, 'chocolatey', 'bin', 'opencode.exe'),
-      path.join(programData, 'chocolatey', 'bin', 'opencode.cmd'),
+      path.join(userProfile, '.kronoscode', 'bin', 'kronoscode.exe'),
+      path.join(userProfile, '.kronoscode', 'bin', 'kronoscode.cmd'),
+      path.join(appData, 'npm', 'kronoscode.cmd'),
+      path.join(userProfile, 'scoop', 'shims', 'kronoscode.cmd'),
+      path.join(programData, 'chocolatey', 'bin', 'kronoscode.exe'),
+      path.join(programData, 'chocolatey', 'bin', 'kronoscode.cmd'),
       // Bun global install
-      path.join(userProfile, '.bun', 'bin', 'opencode.exe'),
-      path.join(userProfile, '.bun', 'bin', 'opencode.cmd'),
+      path.join(userProfile, '.bun', 'bin', 'kronoscode.exe'),
+      path.join(userProfile, '.bun', 'bin', 'kronoscode.cmd'),
       // Some installers use LocalAppData
-      localAppData ? path.join(localAppData, 'Programs', 'opencode', 'opencode.exe') : '',
+      localAppData ? path.join(localAppData, 'Programs', 'kronoscode', 'kronoscode.exe') : '',
     ].filter(Boolean);
   })();
 
@@ -213,7 +213,7 @@ function resolveOpencodeCliPath(): string | null {
 
   if (process.platform === 'win32') {
     try {
-      const result = spawnSync('where', ['opencode'], {
+      const result = spawnSync('where', ['kronoscode'], {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -236,7 +236,7 @@ function resolveOpencodeCliPath(): string | null {
   for (const shell of shells) {
     if (!isExecutable(shell)) continue;
     try {
-      const result = spawnSync(shell, ['-lic', 'command -v opencode'], {
+      const result = spawnSync(shell, ['-lic', 'command -v kronoscode'], {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -292,7 +292,7 @@ async function waitForReady(
   timeoutMs = 15000,
   authHeaders: Record<string, string> = {}
 ): Promise<ReadyResult> {
-  const outputChannel = vscode.window.createOutputChannel('OpenChamberManager');
+  const outputChannel = vscode.window.createOutputChannel('KronosChamberManager');
   const start = Date.now();
   const candidates = getCandidateBaseUrls(serverUrl);
   let attempts = 0;
@@ -304,7 +304,7 @@ async function waitForReady(
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
 
-        // OpenCode readiness check.
+        // KronosCode readiness check.
         const url = new URL(`${baseUrl}/global/health`);
         const res = await fetch(url.toString(), {
           method: 'GET',
@@ -338,12 +338,12 @@ async function waitForReady(
   return { ok: false, elapsedMs: Date.now() - start, attempts, version: null };
 }
 
-async function spawnManagedOpenCodeServer(
+async function spawnManagedKronosCodeServer(
   workingDirectory: string,
   port: number,
   timeoutMs: number
 ): Promise<{ url: string; close: () => void }> {
-  const binary = (process.env.OPENCODE_BINARY || 'opencode').trim() || 'opencode';
+  const binary = (process.env.KRONOSCODE_BINARY || 'kronoscode').trim() || 'kronoscode';
   const args = ['serve', '--hostname', '127.0.0.1', '--port', String(port)];
   const child = spawn(binary, args, {
     cwd: workingDirectory,
@@ -369,7 +369,7 @@ async function spawnManagedOpenCodeServer(
       output += chunk.toString();
       const lines = output.split('\n');
       for (const line of lines) {
-        if (!line.startsWith('opencode server listening')) continue;
+        if (!line.startsWith('kronoscode server listening')) continue;
         const match = line.match(/on\s+(https?:\/\/[^\s]+)/);
         if (!match) {
           cleanup();
@@ -388,7 +388,7 @@ async function spawnManagedOpenCodeServer(
 
     const onExit = (code: number | null) => {
       cleanup();
-      reject(new Error(`OpenCode exited with code ${code}. Output: ${output}`));
+      reject(new Error(`KronosCode exited with code ${code}. Output: ${output}`));
     };
 
     const onError = (error: Error) => {
@@ -419,7 +419,7 @@ async function spawnManagedOpenCodeServer(
   };
 }
 
-async function allocateManagedOpenCodePort(): Promise<number> {
+async function allocateManagedKronosCodePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
 
@@ -435,7 +435,7 @@ async function allocateManagedOpenCodePort(): Promise<number> {
           resolve(port);
           return;
         }
-        reject(new Error('Failed to allocate OpenCode port'));
+        reject(new Error('Failed to allocate KronosCode port'));
       });
     });
 
@@ -443,15 +443,15 @@ async function allocateManagedOpenCodePort(): Promise<number> {
   });
 }
 
-export function createOpenCodeManager(_context: vscode.ExtensionContext): OpenCodeManager {
+export function createKronosCodeManager(_context: vscode.ExtensionContext): KronosCodeManager {
   void _context;
   let server: { url: string; close: () => void } | null = null;
   let managedApiUrlOverride: string | null = null;
   let managedPassword: string | null = null;
   let managedPasswordSource: 'user-env' | 'generated' | 'rotated' | null = null;
   const userProvidedEnvPassword = (() => {
-    const normalized = (process.env.OPENCODE_SERVER_PASSWORD || '').trim();
-    return isValidOpenCodePassword(normalized) ? normalized : null;
+    const normalized = (process.env.KRONOSCODE_SERVER_PASSWORD || '').trim();
+    return isValidKronosCodePassword(normalized) ? normalized : null;
   })();
   let status: ConnectionStatus = 'disconnected';
   let lastError: string | undefined;
@@ -518,12 +518,12 @@ export function createOpenCodeManager(_context: vscode.ExtensionContext): OpenCo
     return null;
   };
 
-  const getOpenCodeAuthHeaders = (): Record<string, string> => {
-    const password = (managedPassword || userProvidedEnvPassword || process.env.OPENCODE_SERVER_PASSWORD || '').trim();
+  const getKronosCodeAuthHeaders = (): Record<string, string> => {
+    const password = (managedPassword || userProvidedEnvPassword || process.env.KRONOSCODE_SERVER_PASSWORD || '').trim();
     if (!password) {
       return {};
     }
-    return { Authorization: buildOpenCodeAuthHeader(password) };
+    return { Authorization: buildKronosCodeAuthHeader(password) };
   };
 
   const setManagedPasswordState = (
@@ -533,27 +533,27 @@ export function createOpenCodeManager(_context: vscode.ExtensionContext): OpenCo
     const normalized = password.trim();
     managedPassword = normalized;
     managedPasswordSource = source;
-    process.env.OPENCODE_SERVER_PASSWORD = normalized;
+    process.env.KRONOSCODE_SERVER_PASSWORD = normalized;
     return normalized;
   };
 
-  const ensureManagedOpenCodeServerPassword = async ({ rotateManaged = false }: { rotateManaged?: boolean } = {}): Promise<string> => {
+  const ensureManagedKronosCodeServerPassword = async ({ rotateManaged = false }: { rotateManaged?: boolean } = {}): Promise<string> => {
     if (userProvidedEnvPassword) {
       return setManagedPasswordState(userProvidedEnvPassword, 'user-env');
     }
 
     if (rotateManaged) {
-      return setManagedPasswordState(generateSecureOpenCodePassword(), 'rotated');
+      return setManagedPasswordState(generateSecureKronosCodePassword(), 'rotated');
     }
 
-    if (managedPassword && isValidOpenCodePassword(managedPassword)) {
+    if (managedPassword && isValidKronosCodePassword(managedPassword)) {
       return setManagedPasswordState(
         managedPassword,
         managedPasswordSource || 'generated'
       );
     }
 
-    return setManagedPasswordState(generateSecureOpenCodePassword(), 'generated');
+    return setManagedPasswordState(generateSecureKronosCodePassword(), 'generated');
   };
 
   async function startInternal(
@@ -599,22 +599,22 @@ export function createOpenCodeManager(_context: vscode.ExtensionContext): OpenCo
       if (resolvedCli) {
         cliPath = resolvedCli;
         appendToPath(path.dirname(resolvedCli));
-        process.env.OPENCODE_BINARY = resolvedCli;
+        process.env.KRONOSCODE_BINARY = resolvedCli;
       }
 
-      const password = await ensureManagedOpenCodeServerPassword({
+      const password = await ensureManagedKronosCodeServerPassword({
         rotateManaged: options.rotateManaged === true,
       });
-      process.env.OPENCODE_SERVER_PASSWORD = password;
+      process.env.KRONOSCODE_SERVER_PASSWORD = password;
 
-      // SDK spawns `opencode serve` in current process cwd.
-      // Some OpenCode endpoints behave differently based on server process cwd,
+      // SDK spawns `kronoscode serve` in current process cwd.
+      // Some KronosCode endpoints behave differently based on server process cwd,
       // so ensure we start it from the workspace directory.
       const originalCwd = process.cwd();
       try {
         process.chdir(workingDirectory);
-        const port = await allocateManagedOpenCodePort();
-        server = await spawnManagedOpenCodeServer(workingDirectory, port, READY_CHECK_TIMEOUT_MS);
+        const port = await allocateManagedKronosCodePort();
+        server = await spawnManagedKronosCodeServer(workingDirectory, port, READY_CHECK_TIMEOUT_MS);
       } finally {
         try {
           process.chdir(originalCwd);
@@ -625,7 +625,7 @@ export function createOpenCodeManager(_context: vscode.ExtensionContext): OpenCo
 
       if (server && server.url) {
         // Validate readiness for the current workspace context.
-        const ready = await waitForReady(server.url, READY_CHECK_TIMEOUT_MS, getOpenCodeAuthHeaders());
+        const ready = await waitForReady(server.url, READY_CHECK_TIMEOUT_MS, getKronosCodeAuthHeaders());
         lastReadyElapsedMs = ready.elapsedMs;
         lastReadyAttempts = ready.attempts;
         if (ready.ok) {
@@ -649,22 +649,22 @@ export function createOpenCodeManager(_context: vscode.ExtensionContext): OpenCo
       const message = err instanceof Error ? err.message : String(err);
 
       // Check for ENOENT or generic spawn failure which implies CLI missing
-      if (message.includes('ENOENT') || message.includes('spawn opencode')) {
+      if (message.includes('ENOENT') || message.includes('spawn kronoscode')) {
         cliMissing = true;
         if (!cliPath) {
           cliPath = resolveOpencodeCliPath();
         }
-        setStatus('error', 'OpenCode CLI not found. Install it and ensure it\'s in PATH.');
+        setStatus('error', 'KronosCode CLI not found. Install it and ensure it\'s in PATH.');
         vscode.window.showErrorMessage(
-          'OpenCode CLI not found. Please install it and ensure it\'s in PATH.',
+          'KronosCode CLI not found. Please install it and ensure it\'s in PATH.',
           'More Info'
         ).then(selection => {
           if (selection === 'More Info') {
-            vscode.env.openExternal(vscode.Uri.parse('https://github.com/anomalyco/opencode'));
+            vscode.env.openExternal(vscode.Uri.parse('https://github.com/anomalyco/kronoscode'));
           }
         });
       } else {
-        setStatus('error', `Failed to start OpenCode: ${message}`);
+        setStatus('error', `Failed to start KronosCode: ${message}`);
       }
     }
   }
@@ -787,11 +787,11 @@ export function createOpenCodeManager(_context: vscode.ExtensionContext): OpenCo
     setWorkingDirectory,
     getStatus: () => status,
     getApiUrl,
-    getOpenCodeAuthHeaders,
+    getKronosCodeAuthHeaders,
     getWorkingDirectory: () => workingDirectory,
     isCliAvailable: () => !cliMissing,
     getDebugInfo: () => {
-      const secureConnection = Boolean(getOpenCodeAuthHeaders().Authorization);
+      const secureConnection = Boolean(getKronosCodeAuthHeaders().Authorization);
       return {
         mode: useConfiguredUrl && configuredApiUrl ? 'external' : 'managed',
         status,
