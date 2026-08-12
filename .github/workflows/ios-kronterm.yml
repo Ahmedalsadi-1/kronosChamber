@@ -1,0 +1,77 @@
+name: Build KronTerm iOS
+
+on:
+  push:
+    branches:
+      - feat/ios-kronterm-local-shell
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Install JS dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build KronosChamber web UI
+        run: bun run build:web
+
+      - name: Bundle KronosChamber into iOS app
+        run: node scripts/prepare-ios-kronoschamber.mjs
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: packages/ios
+        run: xcodegen generate
+
+      - name: Build unsigned device app
+        working-directory: packages/ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project KronTermMobile.xcodeproj \
+            -scheme KronTermMobile \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build | tee build.log
+
+      - name: Package IPA
+        working-directory: packages/ios
+        run: |
+          APP_PATH="$PWD/build/Build/Products/Release-iphoneos/KronTerm.app"
+          test -d "$APP_PATH"
+          rm -rf Payload KronTerm-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/KronTerm.app
+          /usr/bin/zip -qry KronTerm-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KronTerm-iPhone-unsigned
+          path: packages/ios/KronTerm-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KronTerm-iOS-build-log
+          path: packages/ios/build.log
+          if-no-files-found: ignore
