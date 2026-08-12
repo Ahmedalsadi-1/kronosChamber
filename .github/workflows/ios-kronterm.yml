@@ -35,6 +35,11 @@ jobs:
         working-directory: packages/ios
         run: xcodegen generate
 
+      - name: Force GitHub package submodules over HTTPS
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+
       - name: Build unsigned device app
         working-directory: packages/ios
         run: |
