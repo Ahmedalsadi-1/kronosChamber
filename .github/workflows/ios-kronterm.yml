@@ -83,40 +83,65 @@ jobs:
 
   testflight:
     needs: build-ios
-    if: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12_BASE64 != '' && secrets.APPLE_DISTRIBUTION_CERT_PASSWORD != '' && secrets.APPLE_PROVISIONING_PROFILE_BASE64 != '' && secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 != '' && secrets.APP_STORE_CONNECT_KEY_ID != '' && secrets.APP_STORE_CONNECT_ISSUER_ID != '' }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
+      - name: Check TestFlight credentials
+        id: testflight_gate
+        env:
+          CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          if [ -n "$CERTIFICATE_P12_BASE64" ] && [ -n "$CERTIFICATE_PASSWORD" ] && [ -n "$PROVISIONING_PROFILE_BASE64" ] && [ -n "$API_KEY_P8_BASE64" ] && [ -n "$API_KEY_ID" ] && [ -n "$API_ISSUER_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "TestFlight upload skipped: Apple signing/App Store Connect secrets are not configured."
+          fi
+
       - name: Checkout
+        if: steps.testflight_gate.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Bun
+        if: steps.testflight_gate.outputs.enabled == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.5
 
       - name: Install JS dependencies
+        if: steps.testflight_gate.outputs.enabled == 'true'
         run: bun install --frozen-lockfile
 
       - name: Build KronosChamber web UI
+        if: steps.testflight_gate.outputs.enabled == 'true'
         run: bun run build:web
 
       - name: Bundle KronosChamber into iOS app
+        if: steps.testflight_gate.outputs.enabled == 'true'
         run: node scripts/prepare-ios-kronoschamber.mjs
 
       - name: Install XcodeGen
+        if: steps.testflight_gate.outputs.enabled == 'true'
         run: brew install xcodegen
 
       - name: Generate Xcode project
+        if: steps.testflight_gate.outputs.enabled == 'true'
         working-directory: packages/ios
         run: xcodegen generate
 
       - name: Force GitHub package submodules over HTTPS
+        if: steps.testflight_gate.outputs.enabled == 'true'
         run: |
           git config --global --add url."https://github.com/".insteadOf "git@github.com:"
           git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"
 
       - name: Install Apple signing credentials
+        if: steps.testflight_gate.outputs.enabled == 'true'
         env:
           CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
@@ -136,6 +161,7 @@ jobs:
           cp "$RUNNER_TEMP/KronTerm.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/KronTerm.mobileprovision"
 
       - name: Prepare App Store Connect API key
+        if: steps.testflight_gate.outputs.enabled == 'true'
         env:
           API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
           API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -145,6 +171,7 @@ jobs:
           chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8"
 
       - name: Archive signed KronTerm
+        if: steps.testflight_gate.outputs.enabled == 'true'
         working-directory: packages/ios
         run: |
           set -o pipefail
@@ -158,6 +185,7 @@ jobs:
             archive | tee signed-build.log
 
       - name: Create App Store export options
+        if: steps.testflight_gate.outputs.enabled == 'true'
         working-directory: packages/ios
         run: |
           cat > ExportOptions.plist <<'PLIST'
@@ -176,6 +204,7 @@ jobs:
           PLIST
 
       - name: Export signed IPA
+        if: steps.testflight_gate.outputs.enabled == 'true'
         working-directory: packages/ios
         run: |
           xcodebuild \
@@ -185,6 +214,7 @@ jobs:
             -exportOptionsPlist "$PWD/ExportOptions.plist"
 
       - name: Upload KronTerm to TestFlight
+        if: steps.testflight_gate.outputs.enabled == 'true'
         working-directory: packages/ios
         env:
           API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -200,6 +230,7 @@ jobs:
             --apiIssuer "$API_ISSUER_ID"
 
       - name: Upload signed IPA artifact
+        if: steps.testflight_gate.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: KronTerm-iPhone-TestFlight-signed
