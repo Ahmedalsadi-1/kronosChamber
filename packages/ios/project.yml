@@ -12,7 +12,7 @@ packages:
     from: 1.6.0
   ios_system:
     url: https://github.com/holzschu/ios_system.git
-    from: 3.0.5
+    from: 3.0.4
 targets:
   KronTermMobile:
     type: application
@@ -24,6 +24,7 @@ targets:
     dependencies:
       - package: SwiftTerm
       - package: ios_system
+        product: ios_system
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.kronterm.mobile
