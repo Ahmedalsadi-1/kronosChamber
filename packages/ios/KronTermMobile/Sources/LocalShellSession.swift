@@ -20,7 +20,7 @@ final class LocalShellSession: ObservableObject {
         setenv("HOME", documents.path, 1)
         setenv("PATH", "\(documents.path)/bin:/usr/bin:/bin", 1)
         initializeEnvironment()
-        _ = ios_setMiniRoot(workspaceRoot.path as NSString)
+        _ = ios_setMiniRoot(workspaceRoot.path)
         FileManager.default.changeCurrentDirectoryPath(workspaceRoot.path)
     }
 
