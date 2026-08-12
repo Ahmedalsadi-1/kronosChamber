@@ -36,6 +36,7 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "KronTerm can connect to local development services when you choose to use them."
         CODE_SIGN_STYLE: Automatic
+        COMPRESS_PNG_FILES: NO
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
     scheme:
